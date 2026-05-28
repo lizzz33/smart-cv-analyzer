@@ -11,12 +11,15 @@ from aiokafka.errors import CommitFailedError
 
 from worker.config import settings
 from worker.db.connection import get_session
-from worker.db.crud import update_task_status
+from worker.db.crud import save_result, update_task_status
 
 logger = logging.getLogger(__name__)
 
 KAFKA_TOPIC = "cv-tasks"
 CONSUMER_GROUP = "cv-worker-group"
+
+# Типы файлов для текстового пайплайна
+TEXT_FILE_TYPES = {"pdf", "docx", "odt"}
 
 _shutting_down = False
 
@@ -34,7 +37,7 @@ def install_signal_handlers():
 
 
 async def process_message(msg_data: dict) -> None:
-    """Обработка одной задачи (заглушка — пайплайны на следующих этапах)."""
+    """Обработка одной задачи: маршрутизация по типу файла к нужному пайплайну."""
     task_id = uuid.UUID(msg_data["task_id"])
     file_type = msg_data["file_type"]
     file_path = msg_data["file_path"]
@@ -45,13 +48,19 @@ async def process_message(msg_data: dict) -> None:
         update_task_status(session, task_id, "processing")
         logger.info("Статус обновлён на processing: task_id=%s", task_id)
 
-        # Заглушка — пайплайны будут реализованы на этапах 4 и 5
-        raise NotImplementedError("pipeline not implemented")
-    except NotImplementedError as e:
-        update_task_status(session, task_id, "failed", error_msg=str(e))
-        logger.warning("Задача завершена (заглушка): task_id=%s, error=%s", task_id, e)
-    except Exception:
-        update_task_status(session, task_id, "failed", error_msg="internal worker error")
+        if file_type in TEXT_FILE_TYPES:
+            from worker.pipelines.text_pipeline import TextPipeline
+            pipeline = TextPipeline()
+            result = await asyncio.to_thread(pipeline.process, file_path)
+        else:
+            raise NotImplementedError(f"Пайплайн для типа {file_type} не реализован")
+
+        save_result(session, task_id, result)
+        update_task_status(session, task_id, "completed")
+        logger.info("Задача завершена успешно: task_id=%s", task_id)
+    except Exception as e:
+        error_msg = str(e)
+        update_task_status(session, task_id, "failed", error_msg=error_msg)
         logger.exception("Ошибка обработки задачи: task_id=%s", task_id)
     finally:
         session.close()
