@@ -1,0 +1,61 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Виртуальное окружение
+.venv/
+venv/
+
+# uv
+uv.lock
+
+# Окружение
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Claude Code (внутренние инструкции агента)
+.claude/
+
+# Модели (скачиваются отдельно)
+models/
+
+# Данные экспериментов
+results/
+dataset/
+experiments/
+src/
+
+# Результаты обработок (корень)
+cv_*.json
+
+# Загруженные файлы
+/tmp/
+uploads/
+
+# План реализации (внутренний)
+tasks/
+docs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# Логи
+*.log
+
+# Claude
+CLAUDE.md
+.claudeignore
