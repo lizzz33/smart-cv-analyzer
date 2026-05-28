@@ -11,6 +11,7 @@ from api.db import crud
 from api.db.connection import get_db
 from api.metrics import cv_uploads_total
 from api.services.file_validator import validate_file
+from api.services.kafka_producer import publish_task
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,17 @@ async def upload_file(
     content = await file.read()
     dest.write_bytes(content)
     logger.info("Файл сохранён: %s (%d байт)", dest, file_size)
+
+    # Отправляем задачу в Kafka
+    try:
+        await publish_task(
+            task_id=str(task.id),
+            file_path=str(dest),
+            file_type=ext,
+            file_name=file.filename,
+        )
+    except Exception:
+        logger.exception("Ошибка отправки в Kafka: task_id=%s", task.id)
 
     cv_uploads_total.inc()
 

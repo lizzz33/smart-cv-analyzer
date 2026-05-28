@@ -9,6 +9,7 @@ from prometheus_client import generate_latest
 from api.config import settings
 from api.db.connection import engine
 from api.routers import tasks, upload
+from api.services.kafka_producer import start_producer, stop_producer
 
 logging.basicConfig(
     level=logging.INFO,
@@ -21,7 +22,9 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Инициализация и очистка ресурсов приложения."""
     logger.info("API запускается, DATABASE_URL=%s", settings.DATABASE_URL.split("@")[-1])
+    await start_producer()
     yield
+    await stop_producer()
     await engine.dispose()
     logger.info("API остановлен")
 
