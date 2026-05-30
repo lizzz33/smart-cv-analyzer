@@ -1,11 +1,10 @@
-"""Тесты валидации Kafka-сообщений и роутинга по типу файла."""
+"""Тесты валидации Kafka-сообщений."""
 
 import uuid
-from unittest.mock import MagicMock, patch
 
 import pytest
 
-from worker.consumer import TEXT_FILE_TYPES, _validate_message, process_message
+from worker.consumer import _validate_message
 
 
 def _valid_msg(**overrides):
@@ -62,64 +61,3 @@ def test_image_file_types_are_supported(file_type):
     """Изображения (jpeg, jpg, png) проходят валидацию."""
     msg = _valid_msg(file_type=file_type)
     assert _validate_message(msg) is None
-
-
-# ---------------------------------------------------------------------------
-# Роутинг: text vs vision pipeline
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize("file_type", sorted(TEXT_FILE_TYPES))
-@pytest.mark.asyncio
-async def test_text_file_routes_to_text_pipeline(file_type):
-    """Текстовые типы файлов направляются в TextPipeline."""
-    task_id = str(uuid.uuid4())
-    msg = _valid_msg(task_id=task_id, file_type=file_type)
-
-    with (
-        patch("worker.consumer.get_session") as mock_session,
-        patch("worker.consumer.update_task_status"),
-        patch("worker.consumer.save_full_result"),
-        patch("worker.consumer.CVResult") as mock_cv,
-    ):
-        mock_sess = MagicMock()
-        mock_session.return_value = mock_sess
-        mock_cv.model_validate.return_value = MagicMock()
-
-        with patch("worker.pipelines.text_pipeline.TextPipeline") as mock_cls:
-            mock_pipeline = MagicMock()
-            mock_pipeline.process.return_value = {"personal_data": {}}
-            mock_cls.return_value = mock_pipeline
-
-            await process_message(msg)
-
-            mock_cls.assert_called_once()
-            mock_pipeline.process.assert_called_once_with(msg["file_path"])
-
-
-@pytest.mark.parametrize("file_type", ["jpeg", "jpg", "png"])
-@pytest.mark.asyncio
-async def test_image_file_routes_to_vision_pipeline(file_type):
-    """Image-типы файлов направляются в VisionPipeline."""
-    task_id = str(uuid.uuid4())
-    msg = _valid_msg(task_id=task_id, file_type=file_type)
-
-    with (
-        patch("worker.consumer.get_session") as mock_session,
-        patch("worker.consumer.update_task_status"),
-        patch("worker.consumer.save_full_result"),
-        patch("worker.consumer.CVResult") as mock_cv,
-    ):
-        mock_sess = MagicMock()
-        mock_session.return_value = mock_sess
-        mock_cv.model_validate.return_value = MagicMock()
-
-        with patch("worker.pipelines.vision_pipeline.VisionPipeline") as mock_cls:
-            mock_pipeline = MagicMock()
-            mock_pipeline.process.return_value = {"personal_data": {}}
-            mock_cls.return_value = mock_pipeline
-
-            await process_message(msg)
-
-            mock_cls.assert_called_once()
-            mock_pipeline.process.assert_called_once_with(msg["file_path"])

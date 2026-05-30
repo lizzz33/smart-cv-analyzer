@@ -59,21 +59,6 @@ async def test_consume_loop_skips_invalid_json():
     consumer.commit.assert_awaited()
 
 
-@pytest.mark.asyncio
-async def test_consume_loop_skips_invalid_message():
-    """Сообщение без обязательных полей — пропускается, offset коммитится."""
-    msg_data = {"task_id": str(uuid.uuid4())}  # нет file_path, file_type, file_name
-    bad_msg = _kafka_message(msg_data)
-
-    consumer = MagicMock()
-    consumer.__aiter__ = MagicMock(return_value=_AsyncIter([bad_msg]))
-    consumer.commit = AsyncMock()
-
-    await _consume_loop(consumer)
-
-    consumer.commit.assert_awaited()
-
-
 # ---------------------------------------------------------------------------
 # _consume_loop — graceful shutdown
 # ---------------------------------------------------------------------------

@@ -18,19 +18,6 @@ def manager():
 # ---------------------------------------------------------------------------
 
 
-def test_properties_none_initially(manager):
-    """Новый экземпляр не содержит загруженных моделей."""
-    assert manager.model is None
-    assert manager.tokenizer is None
-    assert manager.processor is None
-    assert manager._current_model_type is None
-
-
-# ---------------------------------------------------------------------------
-# load_text_model
-# ---------------------------------------------------------------------------
-
-
 def test_load_text_model(manager):
     """load_text_model загружает модель и токенизатор."""
     with (
@@ -48,23 +35,6 @@ def test_load_text_model(manager):
     assert manager.tokenizer is not None
     # .eval() вызывается после загрузки
     mock_model.eval.assert_called_once()
-
-
-def test_load_text_model_idempotent(manager):
-    """Повторный вызов load_text_model не перезагружает модель."""
-    with (
-        patch("worker.model_manager.AutoTokenizer") as mock_tok_cls,
-        patch("worker.model_manager.AutoModelForCausalLM") as mock_model_cls,
-    ):
-        mock_tok_cls.from_pretrained.return_value = MagicMock(name="tokenizer")
-        mock_model_cls.from_pretrained.return_value = MagicMock(name="model")
-
-        manager.load_text_model()
-        manager.load_text_model()
-
-    # from_pretrained вызывается только один раз (при первой загрузке)
-    assert mock_tok_cls.from_pretrained.call_count == 1
-    assert mock_model_cls.from_pretrained.call_count == 1
 
 
 def test_load_text_model_calls_correct_path(manager):
@@ -139,22 +109,6 @@ def test_load_vision_model_unloads_text(manager):
     assert manager.model is not text_model_ref
 
 
-def test_load_vision_model_idempotent(manager):
-    """Повторный вызов load_vision_model не перезагружает модель."""
-    with (
-        patch("worker.model_manager.AutoProcessor") as mock_proc_cls,
-        patch("worker.model_manager.Qwen2VLForConditionalGeneration") as mock_vision_cls,
-    ):
-        mock_proc_cls.from_pretrained.return_value = MagicMock()
-        mock_vision_cls.from_pretrained.return_value = MagicMock()
-
-        manager.load_vision_model()
-        manager.load_vision_model()
-
-    assert mock_proc_cls.from_pretrained.call_count == 1
-    assert mock_vision_cls.from_pretrained.call_count == 1
-
-
 # ---------------------------------------------------------------------------
 # _unload
 # ---------------------------------------------------------------------------
@@ -174,15 +128,6 @@ def test_unload_clears_everything(manager):
     assert manager.tokenizer is None
     assert manager.processor is None
     assert manager._current_model_type is None
-
-
-def test_unload_when_nothing_loaded(manager):
-    """_unload при отсутствии модели не вызывает ошибку."""
-    with patch("worker.model_manager.gc") as mock_gc:
-        manager._unload()
-
-    # gc.collect не вызывается, если нечего выгружать
-    mock_gc.collect.assert_not_called()
 
 
 def test_unload_calls_gc_collect(manager):

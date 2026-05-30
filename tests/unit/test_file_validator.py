@@ -22,33 +22,70 @@ def _mock_metrics():
         yield
 
 
-async def test_valid_pdf(_mock_metrics):
-    file = _make_upload("resume.pdf", b"%PDF-1.4 some content")
+# ---------------------------------------------------------------------------
+# Валидные форматы — один parametrize
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "filename, content, mime, expected_ext",
+    [
+        ("resume.pdf", b"%PDF-1.4 some content", "application/pdf", "pdf"),
+        (
+            "resume.docx",
+            b"PK\x03\x04 docx content",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "docx",
+        ),
+        (
+            "resume.odt",
+            b"ODT content data",
+            "application/vnd.oasis.opendocument.text",
+            "odt",
+        ),
+        ("photo.jpeg", b"\xff\xd8\xff\xe0 jpeg data", "image/jpeg", "jpeg"),
+        ("scan.png", b"\x89PNG\r\n\x1a\n png data", "image/png", "png"),
+    ],
+    ids=["pdf", "docx", "odt", "jpeg", "png"],
+)
+async def test_valid_formats(_mock_metrics, filename, content, mime, expected_ext):
+    """Поддерживаемые форматы проходят валидацию."""
+    file = _make_upload(filename, content)
 
     with patch("api.services.file_validator.magic") as m_magic:
-        m_magic.from_buffer.return_value = "application/pdf"
-        ext, size, content = await validate_file(file)
+        m_magic.from_buffer.return_value = mime
+        ext, size, result_content = await validate_file(file)
 
-    assert ext == "pdf"
-    assert size == len(b"%PDF-1.4 some content")
-    assert content == b"%PDF-1.4 some content"
+    assert ext == expected_ext
+    assert size == len(content)
+    assert result_content == content
 
 
-async def test_valid_docx(_mock_metrics):
-    file = _make_upload("resume.docx", b"PK\x03\x04 docx content")
+# ---------------------------------------------------------------------------
+# Нормализация .jpg -> .jpeg
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_jpg_normalized_to_jpeg(_mock_metrics):
+    file = _make_upload("photo.jpg", b"\xff\xd8\xff\xe0 jpeg data")
 
     with patch("api.services.file_validator.magic") as m_magic:
-        m_mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        m_magic.from_buffer.return_value = m_mime
-        ext, size, content = await validate_file(file)
+        m_magic.from_buffer.return_value = "image/jpeg"
+        ext, _, _ = await validate_file(file)
 
-    assert ext == "docx"
-    assert content == b"PK\x03\x04 docx content"
+    assert ext == "jpeg"
 
 
+# ---------------------------------------------------------------------------
+# Ошибки валидации
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
 async def test_missing_filename(_mock_metrics):
     file = _make_upload(None, b"data")
-    # file.filename is None — file.read() не вызывается
 
     with pytest.raises(HTTPException) as exc_info:
         await validate_file(file)
@@ -57,6 +94,7 @@ async def test_missing_filename(_mock_metrics):
     assert "File name is missing" in exc_info.value.detail
 
 
+@pytest.mark.asyncio
 async def test_unsupported_extension(_mock_metrics):
     file = _make_upload("resume.txt", b"plain text")
 
@@ -67,6 +105,7 @@ async def test_unsupported_extension(_mock_metrics):
     assert "Unsupported" in exc_info.value.detail
 
 
+@pytest.mark.asyncio
 async def test_empty_file(_mock_metrics):
     file = _make_upload("resume.pdf", b"")
 
@@ -78,6 +117,7 @@ async def test_empty_file(_mock_metrics):
     assert "empty" in exc_info.value.detail.lower()
 
 
+@pytest.mark.asyncio
 async def test_file_too_large(_mock_metrics):
     big_content = b"x" * (2 * 1024 * 1024)  # 2 MB
     file = _make_upload("resume.pdf", big_content)
@@ -90,6 +130,7 @@ async def test_file_too_large(_mock_metrics):
     assert "exceeds" in exc_info.value.detail.lower()
 
 
+@pytest.mark.asyncio
 async def test_mime_mismatch(_mock_metrics):
     file = _make_upload("resume.pdf", b"<html>not a pdf</html>")
 
@@ -100,49 +141,3 @@ async def test_mime_mismatch(_mock_metrics):
 
     assert exc_info.value.status_code == 422
     assert "does not match" in exc_info.value.detail
-
-
-async def test_jpg_normalized_to_jpeg(_mock_metrics):
-    file = _make_upload("photo.jpg", b"\xff\xd8\xff\xe0 jpeg data")
-
-    with patch("api.services.file_validator.magic") as m_magic:
-        m_magic.from_buffer.return_value = "image/jpeg"
-        ext, _, _ = await validate_file(file)
-
-    assert ext == "jpeg"
-
-
-async def test_valid_odt(_mock_metrics):
-    """ODT-файл проходит валидацию."""
-    file = _make_upload("resume.odt", b"ODT content data")
-
-    with patch("api.services.file_validator.magic") as m_magic:
-        m_magic.from_buffer.return_value = "application/vnd.oasis.opendocument.text"
-        ext, size, content = await validate_file(file)
-
-    assert ext == "odt"
-    assert size == len(b"ODT content data")
-
-
-async def test_valid_jpeg(_mock_metrics):
-    """JPEG-файл проходит валидацию."""
-    file = _make_upload("photo.jpeg", b"\xff\xd8\xff\xe0 jpeg data")
-
-    with patch("api.services.file_validator.magic") as m_magic:
-        m_magic.from_buffer.return_value = "image/jpeg"
-        ext, size, content = await validate_file(file)
-
-    assert ext == "jpeg"
-    assert content == b"\xff\xd8\xff\xe0 jpeg data"
-
-
-async def test_valid_png(_mock_metrics):
-    """PNG-файл проходит валидацию."""
-    file = _make_upload("scan.png", b"\x89PNG\r\n\x1a\n png data")
-
-    with patch("api.services.file_validator.magic") as m_magic:
-        m_magic.from_buffer.return_value = "image/png"
-        ext, size, content = await validate_file(file)
-
-    assert ext == "png"
-    assert content == b"\x89PNG\r\n\x1a\n png data"

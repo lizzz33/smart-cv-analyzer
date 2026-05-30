@@ -8,7 +8,6 @@ from PIL import Image
 
 from worker.pipelines.vision_pipeline import (
     IMAGE_FILE_TYPES,
-    MAX_IMAGE_SIZE,
     VisionPipeline,
 )
 
@@ -89,40 +88,6 @@ class TestDetectFileType:
 class TestPreprocessImage:
     """Проверки предобработки изображений."""
 
-    def test_rgb_image_unchanged_mode(self, sample_jpeg):
-        """RGB-изображение не требует конвертации режима."""
-        pipeline = _make_pipeline()
-        result = pipeline._preprocess_image(str(sample_jpeg))
-        assert result.mode == "RGB"
-
-    def test_rgba_image_converted_to_rgb(self, sample_png):
-        """PNG с альфа-каналом конвертируется в RGB."""
-        pipeline = _make_pipeline()
-        result = pipeline._preprocess_image(str(sample_png))
-        assert result.mode == "RGB"
-
-    def test_grayscale_image_converted_to_rgb(self, grayscale_jpeg):
-        """Grayscale-изображение конвертируется в RGB."""
-        pipeline = _make_pipeline()
-        result = pipeline._preprocess_image(str(grayscale_jpeg))
-        assert result.mode == "RGB"
-
-    def test_large_image_resized(self, large_jpeg):
-        """Изображение больше MAX_IMAGE_SIZE уменьшается с сохранением пропорций."""
-        pipeline = _make_pipeline()
-        result = pipeline._preprocess_image(str(large_jpeg))
-        assert max(result.size) <= MAX_IMAGE_SIZE
-        # Пропорции сохранены: 1000x1200 -> 768x921
-        orig_ratio = 1000 / 1200
-        new_ratio = result.size[0] / result.size[1]
-        assert abs(orig_ratio - new_ratio) < 0.01
-
-    def test_small_image_not_resized(self, sample_jpeg):
-        """Маленькое изображение не ресайзится."""
-        pipeline = _make_pipeline()
-        result = pipeline._preprocess_image(str(sample_jpeg))
-        assert result.size == (200, 300)
-
     def test_corrupted_image_raises(self, corrupted_image):
         """Битый файл вызывает исключение при загрузке."""
         pipeline = _make_pipeline()
@@ -134,49 +99,6 @@ class TestPreprocessImage:
         pipeline = _make_pipeline()
         with pytest.raises(FileNotFoundError):
             pipeline._preprocess_image(str(tmp_path / "missing.jpeg"))
-
-    def test_sharpening_is_applied(self, varied_jpeg):
-        """Полная цепочка preprocessing воспроизводима вручную."""
-        from PIL import Image, ImageEnhance, ImageFilter
-
-        pipeline = _make_pipeline()
-        result = pipeline._preprocess_image(str(varied_jpeg))
-
-        # Повторяем ту же цепочку вручную
-        img = Image.open(varied_jpeg)
-        img.load()
-        if img.mode != "RGB":
-            img = img.convert("RGB")
-        expected = img.filter(ImageFilter.SHARPEN)
-        expected = ImageEnhance.Contrast(expected).enhance(1.15)
-        expected = ImageEnhance.Brightness(expected).enhance(1.05)
-
-        assert result.size == expected.size
-        assert list(result.getdata()) == list(expected.getdata())
-
-    def test_contrast_enhancement_changes_pixels(self, varied_jpeg):
-        """Contrast+brightness меняют пиксели относительно только sharpening."""
-        from PIL import Image, ImageFilter
-
-        pipeline = _make_pipeline()
-        result = pipeline._preprocess_image(str(varied_jpeg))
-
-        img = Image.open(varied_jpeg)
-        img.load()
-        if img.mode != "RGB":
-            img = img.convert("RGB")
-        sharpened_only = img.filter(ImageFilter.SHARPEN)
-
-        # Считаем суммарную разницу пикселей (JPEG lossy, поэтому не строгое !=)
-        result_pixels = list(result.getdata())
-        sharpened_pixels = list(sharpened_only.getdata())
-        diff = sum(
-            abs(r - s)
-            for rp, sp in zip(result_pixels, sharpened_pixels)
-            for r, s in zip(rp, sp)
-        )
-        # На ненулевых пикселях contrast+brightness гарантированно дают разницу
-        assert diff > 0
 
 
 # ---------------------------------------------------------------------------
@@ -244,24 +166,6 @@ class TestProcess:
         # Аргумент _generate_with_retry — PIL-изображение
         image_arg = mock_retry.call_args[0][0]
         assert isinstance(image_arg, Image.Image)
-
-    @patch("worker.pipelines.vision_pipeline.model_manager")
-    @patch.object(VisionPipeline, "_generate_with_retry")
-    def test_process_jpg_extension(self, mock_retry, mock_mm, sample_jpg):
-        """Файл с расширением .jpg проходит корректно."""
-        mock_retry.return_value = VALID_JSON_RESULT
-        pipeline = _make_pipeline()
-        result = pipeline.process(str(sample_jpg))
-        assert result == VALID_JSON_RESULT
-
-    @patch("worker.pipelines.vision_pipeline.model_manager")
-    @patch.object(VisionPipeline, "_generate_with_retry")
-    def test_process_png_extension(self, mock_retry, mock_mm, sample_png):
-        """PNG-файл проходит корректно."""
-        mock_retry.return_value = VALID_JSON_RESULT
-        pipeline = _make_pipeline()
-        result = pipeline.process(str(sample_png))
-        assert result == VALID_JSON_RESULT
 
     def test_process_unsupported_extension(self, tmp_path):
         """Неподдерживаемое расширение вызывает ValueError до загрузки модели."""

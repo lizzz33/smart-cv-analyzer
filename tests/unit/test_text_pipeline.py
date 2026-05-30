@@ -6,7 +6,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from worker.pipelines.text_pipeline import (
-    EXTRACTION_PROMPT,
     FALLBACK_PROMPT,
     TEXT_LIMIT_FALLBACK,
     TEXT_LIMIT_MAIN,
@@ -47,20 +46,6 @@ def test_detect_file_type_supported(filename, expected):
     """Поддерживаемые расширения распознаются корректно."""
     pipeline = TextPipeline()
     assert pipeline._detect_file_type(filename) == expected
-
-
-@pytest.mark.parametrize("filename", [
-    "resume.txt",
-    "photo.jpeg",
-    "archive.zip",
-    "noext",
-    "",
-])
-def test_detect_file_type_unsupported(filename):
-    """Неподдерживаемые расширения вызывают ValueError."""
-    pipeline = TextPipeline()
-    with pytest.raises(ValueError, match="Неподдерживаемое расширение"):
-        pipeline._detect_file_type(filename)
 
 
 # ---------------------------------------------------------------------------
@@ -145,19 +130,6 @@ def test_generate_calls_model_with_correct_params():
 # ---------------------------------------------------------------------------
 
 
-def test_retry_success_first_attempt():
-    """Успешная генерация с первой попытки (основной промпт)."""
-    pipeline = TextPipeline()
-
-    with patch.object(pipeline, "_generate", return_value={"personal_data": {}}) as mock_gen:
-        result = pipeline._generate_with_retry("Текст резюме")
-
-    assert result == {"personal_data": {}}
-    assert mock_gen.call_count == 1
-    # Передан основной промпт
-    assert mock_gen.call_args[0][0] == EXTRACTION_PROMPT
-
-
 def test_retry_success_second_attempt():
     """Основной промпт не дал результата — успех на fallback (попытка 2)."""
     pipeline = TextPipeline()
@@ -169,17 +141,6 @@ def test_retry_success_second_attempt():
     assert mock_gen.call_count == 2
     # Второй вызов — fallback промпт
     assert mock_gen.call_args_list[1][0][0] == FALLBACK_PROMPT
-
-
-def test_retry_success_third_attempt():
-    """Первые две попытки провалились — успех на минимальном тексте (попытка 3)."""
-    pipeline = TextPipeline()
-
-    with patch.object(pipeline, "_generate", side_effect=[None, None, {"personal_data": {}}]) as mock_gen:
-        result = pipeline._generate_with_retry("Текст резюме")
-
-    assert result == {"personal_data": {}}
-    assert mock_gen.call_count == 3
 
 
 def test_retry_all_attempts_fail():

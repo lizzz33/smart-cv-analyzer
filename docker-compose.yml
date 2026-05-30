@@ -59,6 +59,11 @@ services:
       - "8000:8000"
     volumes:
       - cv_uploads:/tmp/cv_uploads
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
 
   worker:
@@ -80,6 +85,18 @@ services:
     restart: unless-stopped
     deploy:
       replicas: 1
+
+  ui:
+    build: ./ui
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      API_URL: http://api:8000
+    ports:
+      - "8501:8501"
+    mem_limit: 256m
+    restart: unless-stopped
 
 volumes:
   postgres_data:
