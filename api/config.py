@@ -14,16 +14,14 @@ ALLOWED_TYPES: dict[str, list[str]] = {
     "png": ["image/png"],
 }
 
-MAX_FILE_SIZE_BYTES = 1_048_576  # 1 МБ
-
-
 class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+asyncpg://cv_user:changeme@localhost/cv_analyzer"
     KAFKA_BOOTSTRAP_SERVERS: str = "localhost:9092"
+    KAFKA_TOPIC: str = "cv-tasks"
     MAX_FILE_SIZE_MB: int = 1
     UPLOAD_DIR: str = "/tmp/cv_uploads"
 
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+    model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
 
 settings = Settings()

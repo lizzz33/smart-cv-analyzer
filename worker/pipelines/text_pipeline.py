@@ -1,15 +1,13 @@
 """Текстовый пайплайн: извлечение текста + Qwen2.5-3B-Instruct."""
 
-import json
 import logging
-import re
 
 import torch
 
 from worker.extractors.router import get_extractor
 from worker.model_manager import model_manager
+from worker.pipelines._json_utils import extract_json
 from worker.pipelines.base import BasePipeline
-from worker.schemas.cv import CVResult
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +39,8 @@ EXTRACTION_PROMPT = """Ты - система извлечения данных �
       "institution": "",
       "specialty": "",
       "level": "",
-      "start_year": "",
-      "end_year": ""
+      "start_year": null,
+      "end_year": null
     }}
   ],
   "experience": [
@@ -178,58 +176,4 @@ class TextPipeline(BasePipeline):
 
         logger.info("Генерация завершена: response_len=%d", len(response))
 
-        return _extract_json(response)
-
-
-def _extract_json(text: str) -> dict | None:
-    """Извлечение и восстановление JSON из ответа модели."""
-    # Удаление markdown-обёрток
-    text = re.sub(r"```json\s*", "", text)
-    text = re.sub(r"```\s*", "", text)
-
-    start = text.find("{")
-    if start == -1:
-        return None
-
-    # Подсчёт скобок для определения конца JSON
-    brace_count = 0
-    end = start
-    for i in range(start, len(text)):
-        if text[i] == "{":
-            brace_count += 1
-        elif text[i] == "}":
-            brace_count -= 1
-            if brace_count == 0:
-                end = i + 1
-                break
-
-    # Если JSON не закрыт — берём весь остаток текста
-    if end == start:
-        json_str = text[start:]
-        open_braces = json_str.count("{") - json_str.count("}")
-        open_brackets = json_str.count("[") - json_str.count("]")
-        json_str += "]" * open_brackets + "}" * open_braces
-        json_str = re.sub(r",\s*$", "", json_str)
-    else:
-        json_str = text[start:end]
-
-    # Очистка trailing commas
-    json_str = re.sub(r",\s*([}\]])", r"\1", json_str)
-
-    try:
-        data = json.loads(json_str)
-    except json.JSONDecodeError:
-        # Попытка с заменой одинарных кавычек
-        try:
-            data = json.loads(json_str.replace("'", '"'))
-        except json.JSONDecodeError:
-            logger.warning("Не удалось распарсить JSON из ответа модели")
-            return None
-
-    # Валидация через Pydantic
-    try:
-        validated = CVResult.model_validate(data)
-        return validated.model_dump()
-    except Exception:
-        logger.warning("JSON не прошёл валидацию схемы, возврат как есть")
-        return data
+        return extract_json(response)

@@ -1,6 +1,6 @@
 """Pydantic-схема результата извлечения данных из резюме."""
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class PersonalData(BaseModel):
@@ -17,8 +17,19 @@ class Education(BaseModel):
     institution: str = ""
     specialty: str = ""
     level: str = ""
-    start_year: str = ""
-    end_year: str = ""
+    start_year: int | None = None
+    end_year: int | None = None
+
+    @field_validator("start_year", "end_year", mode="before")
+    @classmethod
+    def coerce_year(cls, v: object) -> int | None:
+        """Пустые строки и невалидные значения -> None."""
+        if v in ("", None):
+            return None
+        try:
+            return int(v)
+        except (ValueError, TypeError):
+            return None
 
 
 class Experience(BaseModel):

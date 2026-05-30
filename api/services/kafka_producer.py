@@ -9,8 +9,6 @@ from api.config import settings
 
 logger = logging.getLogger(__name__)
 
-KAFKA_TOPIC = "cv-tasks"
-
 _producer: AIOKafkaProducer | None = None
 
 
@@ -32,6 +30,7 @@ async def start_producer() -> None:
 
 async def stop_producer() -> None:
     """Остановка Kafka producer."""
+    global _producer
     if _producer is not None:
         await _producer.stop()
         _producer = None
@@ -53,7 +52,7 @@ async def publish_task(
     }
     producer = _get_producer()
     await producer.send_and_wait(
-        KAFKA_TOPIC,
+        settings.KAFKA_TOPIC,
         value=json.dumps(message).encode("utf-8"),
     )
     logger.info("Сообщение отправлено в Kafka: task_id=%s", task_id)

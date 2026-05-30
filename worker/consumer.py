@@ -7,19 +7,28 @@ import signal
 import uuid
 
 from aiokafka import AIOKafkaConsumer
-from aiokafka.errors import CommitFailedError
+from aiokafka.errors import CommitFailedError, KafkaError
 
 from worker.config import settings
 from worker.db.connection import get_session
-from worker.db.crud import save_result, update_task_status
+from worker.db.crud import save_full_result, update_task_status
+from worker.schemas.cv import CVResult
 
 logger = logging.getLogger(__name__)
 
-KAFKA_TOPIC = "cv-tasks"
 CONSUMER_GROUP = "cv-worker-group"
 
 # Типы файлов для текстового пайплайна
 TEXT_FILE_TYPES = {"pdf", "docx", "odt"}
+# Все поддерживаемые типы файлов
+SUPPORTED_FILE_TYPES = TEXT_FILE_TYPES | {"jpeg", "jpg", "png"}
+
+# Обязательные поля в сообщении Kafka
+REQUIRED_FIELDS = {"task_id", "file_path", "file_type", "file_name"}
+
+# Параметры переподключения
+RECONNECT_BACKOFF_INITIAL = 5.0
+RECONNECT_BACKOFF_MAX = 120.0
 
 _shutting_down = False
 
@@ -36,6 +45,20 @@ def install_signal_handlers():
     signal.signal(signal.SIGINT, lambda *_: _request_shutdown())
 
 
+def _validate_message(msg_data: dict) -> str | None:
+    """Валидация сообщения. Возвращает описание ошибки или None."""
+    missing = REQUIRED_FIELDS - msg_data.keys()
+    if missing:
+        return f"нет обязательных полей: {missing}"
+    try:
+        uuid.UUID(msg_data["task_id"])
+    except (ValueError, AttributeError, TypeError):
+        return f"некорректный task_id={msg_data.get('task_id')!r}"
+    if msg_data["file_type"] not in SUPPORTED_FILE_TYPES:
+        return f"неподдерживаемый file_type={msg_data['file_type']}"
+    return None
+
+
 async def process_message(msg_data: dict) -> None:
     """Обработка одной задачи: маршрутизация по типу файла к нужному пайплайну."""
     task_id = uuid.UUID(msg_data["task_id"])
@@ -43,67 +66,104 @@ async def process_message(msg_data: dict) -> None:
     file_path = msg_data["file_path"]
     logger.info("Обработка задачи: task_id=%s, file_type=%s, file_path=%s", task_id, file_type, file_path)
 
-    session = get_session()
+    session = None
     try:
+        session = get_session()
         update_task_status(session, task_id, "processing")
-        logger.info("Статус обновлён на processing: task_id=%s", task_id)
 
         if file_type in TEXT_FILE_TYPES:
             from worker.pipelines.text_pipeline import TextPipeline
             pipeline = TextPipeline()
             result = await asyncio.to_thread(pipeline.process, file_path)
         else:
-            raise NotImplementedError(f"Пайплайн для типа {file_type} не реализован")
+            from worker.pipelines.vision_pipeline import VisionPipeline
+            pipeline = VisionPipeline()
+            result = await asyncio.to_thread(pipeline.process, file_path)
 
-        save_result(session, task_id, result)
+        cv = CVResult.model_validate(result)
+        save_full_result(session, task_id, result, cv)
         update_task_status(session, task_id, "completed")
+        session.commit()
         logger.info("Задача завершена успешно: task_id=%s", task_id)
     except Exception as e:
         error_msg = str(e)
-        update_task_status(session, task_id, "failed", error_msg=error_msg)
+        if session is not None:
+            try:
+                session.rollback()
+                update_task_status(session, task_id, "failed", error_msg=error_msg)
+                session.commit()
+            except Exception:
+                logger.exception("Ошибка обновления статуса: task_id=%s", task_id)
         logger.exception("Ошибка обработки задачи: task_id=%s", task_id)
     finally:
-        session.close()
+        if session is not None:
+            session.close()
+
+
+async def _consume_loop(consumer: AIOKafkaConsumer) -> None:
+    """Внутренний цикл потребления сообщений."""
+    async for message in consumer:
+        if _shutting_down:
+            logger.info("Shutdown — завершаю обработку")
+            break
+
+        # Парсинг JSON
+        try:
+            msg_data = json.loads(message.value.decode("utf-8"))
+            logger.info(
+                "Получено сообщение: partition=%d, offset=%d",
+                message.partition,
+                message.offset,
+            )
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            logger.exception("Некорректное сообщение, пропуск: offset=%d", message.offset)
+            await consumer.commit()
+            continue
+
+        # Валидация схемы сообщения
+        validation_error = _validate_message(msg_data)
+        if validation_error:
+            logger.warning("Пропуск: %s: offset=%d", validation_error, message.offset)
+            await consumer.commit()
+            continue
+
+        # Обработка с защитой от краша
+        try:
+            await process_message(msg_data)
+        except Exception:
+            logger.exception("Необработанная ошибка: offset=%d", message.offset)
+
+        # Коммит offset в любом случае
+        try:
+            await consumer.commit()
+        except CommitFailedError:
+            logger.exception("Ошибка коммита offset")
 
 
 async def run_consumer() -> None:
-    """Основной цикл потребления сообщений из Kafka."""
-    consumer = AIOKafkaConsumer(
-        KAFKA_TOPIC,
-        bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-        group_id=CONSUMER_GROUP,
-        enable_auto_commit=False,
-        auto_offset_reset="earliest",
-    )
+    """Основной цикл потребления сообщений из Kafka с переподключением."""
+    backoff = RECONNECT_BACKOFF_INITIAL
+    while not _shutting_down:
+        consumer = AIOKafkaConsumer(
+            settings.KAFKA_TOPIC,
+            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
+            group_id=CONSUMER_GROUP,
+            enable_auto_commit=False,
+            auto_offset_reset="earliest",
+        )
+        try:
+            await consumer.start()
+            logger.info("Worker запущен, слушаю топик %s", settings.KAFKA_TOPIC)
+            backoff = RECONNECT_BACKOFF_INITIAL
+            await _consume_loop(consumer)
+        except KafkaError:
+            logger.exception("Ошибка Kafka, переподключение через %.1f сек", backoff)
+        except Exception:
+            logger.exception("Неожиданная ошибка consumer, переподключение через %.1f сек", backoff)
+        finally:
+            await consumer.stop()
+            logger.info("Consumer остановлен")
 
-    await consumer.start()
-    logger.info("Worker запущен, слушаю топик %s", KAFKA_TOPIC)
-
-    try:
-        async for message in consumer:
-            if _shutting_down:
-                logger.info("Shutdown — завершаю обработку")
-                break
-
-            try:
-                msg_data = json.loads(message.value.decode("utf-8"))
-                logger.info(
-                    "Получено сообщение: partition=%d, offset=%d",
-                    message.partition,
-                    message.offset,
-                )
-            except (json.JSONDecodeError, UnicodeDecodeError):
-                logger.exception("Некорректное сообщение, пропуск: offset=%d", message.offset)
-                await consumer.commit()
-                continue
-
-            await process_message(msg_data)
-
-            try:
-                await consumer.commit()
-            except CommitFailedError:
-                logger.exception("Ошибка коммита offset: task_id=%s", msg_data.get("task_id"))
-
-    finally:
-        await consumer.stop()
-        logger.info("Consumer остановлен")
+        if not _shutting_down:
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, RECONNECT_BACKOFF_MAX)

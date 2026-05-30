@@ -3,6 +3,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db import crud
@@ -21,13 +22,19 @@ async def get_task_status(
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    return {
+    response = {
         "task_id": str(task.id),
         "status": task.status,
         "file_name": task.file_name,
         "created_at": task.created_at.isoformat(),
         "updated_at": task.updated_at.isoformat(),
     }
+
+    # Для незавершённых задач возвращаем 202 Accepted
+    if task.status in ("pending", "processing"):
+        return JSONResponse(status_code=202, content=response)
+
+    return response
 
 
 @router.get("/api/v1/tasks/{task_id}/result")
@@ -40,10 +47,22 @@ async def get_task_result(
     if result is None:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    if result["status"] != "completed":
+    if result["status"] in ("pending", "processing"):
         raise HTTPException(
-            status_code=409,
-            detail=f"Task status is '{result['status']}', not 'completed'",
+            status_code=202,
+            detail=f"Task status is '{result['status']}', result not ready yet",
+        )
+
+    if result["status"] == "failed":
+        raise HTTPException(
+            status_code=422,
+            detail=f"Task failed: {result.get('error_msg', 'unknown error')}",
+        )
+
+    if result["data"] is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Task completed but result data not found",
         )
 
     return result

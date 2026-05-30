@@ -8,9 +8,10 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE TABLE tasks (
     id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     file_name    VARCHAR(255) NOT NULL,
-    file_type    VARCHAR(10)  NOT NULL,
+    file_type    VARCHAR(10)  NOT NULL CHECK (file_type IN ('pdf', 'docx', 'odt', 'jpeg', 'jpg', 'png')),
     file_size    INTEGER      NOT NULL,
-    status       VARCHAR(20)  NOT NULL DEFAULT 'pending',
+    status       VARCHAR(20)  NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
     error_msg    TEXT,
     page_count   SMALLINT,
     created_at   TIMESTAMPTZ  NOT NULL DEFAULT now(),
@@ -87,6 +88,10 @@ CREATE INDEX idx_resumes_task  ON resumes(task_id);
 CREATE INDEX idx_pd_resume     ON personal_data(resume_id);
 CREATE INDEX idx_pd_email      ON personal_data(email);
 CREATE INDEX idx_raw_json      ON resumes USING GIN(raw_json);
+CREATE INDEX idx_edu_resume    ON education(resume_id);
+CREATE INDEX idx_exp_resume    ON experience(resume_id);
+CREATE INDEX idx_skills_resume ON skills(resume_id);
+CREATE INDEX idx_addl_resume   ON additional(resume_id);
 
 -- Триггер автообновления updated_at
 CREATE OR REPLACE FUNCTION update_updated_at()

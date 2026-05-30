@@ -22,7 +22,10 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Инициализация и очистка ресурсов приложения."""
     logger.info("API запускается, DATABASE_URL=%s", settings.DATABASE_URL.split("@")[-1])
-    await start_producer()
+    try:
+        await start_producer()
+    except Exception:
+        logger.warning("Kafka недоступна — запуск без продюсера", exc_info=True)
     yield
     await stop_producer()
     await engine.dispose()
