@@ -464,3 +464,65 @@ async def test_metrics(client):
     resp = await client.get("/metrics")
     assert resp.status_code == 200
     assert "text/plain" in resp.headers["content-type"]
+
+
+# ---------------------------------------------------------------------------
+# Метрики интегрированы в эндпоинты
+# ---------------------------------------------------------------------------
+
+
+async def test_upload_increments_cv_uploads_total(client):
+    """Успешная загрузка увеличивает счётчик cv_uploads_total."""
+    from prometheus_client import REGISTRY
+
+    before = REGISTRY.get_sample_value("cv_uploads_total") or 0
+
+    with (
+        patch("api.services.file_validator.magic") as m_magic,
+        patch("api.routers.upload.publish_task", new_callable=AsyncMock),
+    ):
+        m_magic.from_buffer.return_value = "application/pdf"
+
+        resp = await client.post(
+            "/api/v1/upload",
+            files={"file": ("resume.pdf", b"%PDF-1.4 test", "application/pdf")},
+        )
+
+    assert resp.status_code == 202
+
+    after = REGISTRY.get_sample_value("cv_uploads_total")
+    assert after == before + 1
+
+
+async def test_upload_error_increments_cv_upload_errors_total(client):
+    """Ошибочная загрузка увеличивает счётчик cv_upload_errors_total."""
+    from prometheus_client import REGISTRY
+
+    before = REGISTRY.get_sample_value("cv_upload_errors_total") or 0
+
+    # Отправляем неподдерживаемый формат — валидация завершится ошибкой
+    resp = await client.post(
+        "/api/v1/upload",
+        files={"file": ("resume.txt", b"plain text", "text/plain")},
+    )
+
+    assert resp.status_code == 422
+
+    after = REGISTRY.get_sample_value("cv_upload_errors_total")
+    assert after > before
+
+
+async def test_tasks_endpoint_records_request_duration(client, async_session):
+    """GET /tasks/{id} записывает observation в cv_api_request_duration_seconds."""
+    from prometheus_client import REGISTRY
+
+    task = await crud.create_task(async_session, "resume.pdf", "pdf", 100)
+
+    resp = await client.get(f"/api/v1/tasks/{task.id}")
+    assert resp.status_code == 202
+
+    count = REGISTRY.get_sample_value(
+        "cv_api_request_duration_seconds_count",
+        {"method": "GET", "endpoint": "/api/v1/tasks/{task_id}", "status_code": "202"},
+    )
+    assert count is not None and count >= 1

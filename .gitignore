@@ -59,5 +59,6 @@ docker-compose.override.yml
 # Claude
 CLAUDE.md
 .claudeignore
+
 # Coverage
 .coverage

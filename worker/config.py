@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     KAFKA_TOPIC: str = "cv-tasks"
     TEXT_MODEL_PATH: str = "/models/Qwen2.5-3B"
     VISION_MODEL_PATH: str = "/models/Qwen2-VL-2B-Instruct"
+    METRICS_PORT: int = 8001
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 

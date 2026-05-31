@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import signal
+import time
 import uuid
 
 from aiokafka import AIOKafkaConsumer
@@ -12,6 +13,13 @@ from aiokafka.errors import CommitFailedError, KafkaError
 from worker.config import settings
 from worker.db.connection import get_session
 from worker.db.crud import save_full_result, update_task_status
+from worker.metrics import (
+    cv_by_format_total,
+    cv_failed_total,
+    cv_processed_total,
+    cv_processing_duration_seconds,
+    update_ram_usage,
+)
 from worker.schemas.cv import CVResult
 
 logger = logging.getLogger(__name__)
@@ -59,13 +67,20 @@ def _validate_message(msg_data: dict) -> str | None:
     return None
 
 
-async def process_message(msg_data: dict) -> None:
-    """Обработка одной задачи: маршрутизация по типу файла к нужному пайплайну."""
+def _process_message_sync(msg_data: dict) -> None:
+    """Синхронная логика обработки задачи (выполняется в отдельном потоке).
+
+    Вся работа с БД (SQLAlchemy sync) и моделями вынесена сюда,
+    чтобы не блокировать event loop aiokafka.
+    """
     task_id = uuid.UUID(msg_data["task_id"])
     file_type = msg_data["file_type"]
     file_path = msg_data["file_path"]
-    logger.info("Обработка задачи: task_id=%s, file_type=%s, file_path=%s", task_id, file_type, file_path)
 
+    # Метрика: подсчёт по формату (внутри try — инвариант format_total == processed + failed)
+    cv_by_format_total.labels(format=file_type).inc()
+
+    start_time = time.monotonic()
     session = None
     try:
         session = get_session()
@@ -73,31 +88,56 @@ async def process_message(msg_data: dict) -> None:
 
         if file_type in TEXT_FILE_TYPES:
             from worker.pipelines.text_pipeline import TextPipeline
+
             pipeline = TextPipeline()
-            result = await asyncio.to_thread(pipeline.process, file_path)
+            result = pipeline.process(file_path)
         else:
             from worker.pipelines.vision_pipeline import VisionPipeline
+
             pipeline = VisionPipeline()
-            result = await asyncio.to_thread(pipeline.process, file_path)
+            result = pipeline.process(file_path)
 
         cv = CVResult.model_validate(result)
         save_full_result(session, task_id, result, cv)
         update_task_status(session, task_id, "completed")
         session.commit()
-        logger.info("Задача завершена успешно: task_id=%s", task_id)
+
+        # Метрики: успех
+        duration = time.monotonic() - start_time
+        cv_processing_duration_seconds.labels(file_type=file_type).observe(duration)
+        cv_processed_total.labels(file_type=file_type).inc()
+        logger.info("Задача завершена успешно: task_id=%s, duration=%.1f сек", task_id, duration)
     except Exception as e:
         error_msg = str(e)
+        cv_failed_total.labels(file_type=file_type).inc()
         if session is not None:
             try:
                 session.rollback()
                 update_task_status(session, task_id, "failed", error_msg=error_msg)
                 session.commit()
             except Exception:
-                logger.exception("Ошибка обновления статуса: task_id=%s", task_id)
+                logger.exception(
+                    "КРИТИЧНО: не удалось обновить статус задачи %s на 'failed' — "
+                    "задача может зависнуть в 'processing'. Требуется ручное вмешательство.",
+                    task_id,
+                )
         logger.exception("Ошибка обработки задачи: task_id=%s", task_id)
     finally:
         if session is not None:
             session.close()
+        # Обновление метрики RAM после каждой задачи
+        update_ram_usage()
+
+
+async def process_message(msg_data: dict) -> None:
+    """Обработка одной задачи: маршрутизация по типу файла к нужному пайплайну."""
+    logger.info(
+        "Обработка задачи: task_id=%s, file_type=%s, file_path=%s",
+        msg_data["task_id"],
+        msg_data["file_type"],
+        msg_data["file_path"],
+    )
+    await asyncio.to_thread(_process_message_sync, msg_data)
 
 
 async def _consume_loop(consumer: AIOKafkaConsumer) -> None:

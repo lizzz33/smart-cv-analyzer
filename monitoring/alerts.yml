@@ -1,0 +1,27 @@
+groups:
+  - name: cv_analyzer_alerts
+    rules:
+      - alert: CvTasksStuck
+        expr: cv_tasks_in_progress > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Накопление задач в очереди"
+          description: "Более 10 задач в статусе pending/processing дольше 5 минут. Возможно, воркер завис."
+
+      - alert: CvHighFailureRate
+        expr: rate(cv_failed_total[5m]) > 0.3
+        labels:
+          severity: critical
+        annotations:
+          summary: "Высокий процент ошибок обработки"
+          description: "Rate ошибок обработки превышает 0.3/сек. Модель или пайплайн могут быть неисправны."
+
+      - alert: CvRamCritical
+        expr: cv_ram_usage_bytes > 10737418240
+        labels:
+          severity: critical
+        annotations:
+          summary: "Критическое потребление RAM воркером"
+          description: "Воркер потребляет более 10 GB RAM. Риск OOM kill."

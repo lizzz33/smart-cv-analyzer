@@ -2,11 +2,13 @@
 
 import gc
 import logging
+import time
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoProcessor, Qwen2VLForConditionalGeneration
 
 from worker.config import settings
+from worker.metrics import cv_model_load_duration_seconds, update_ram_usage
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +32,7 @@ class ModelManager:
         model_path = settings.TEXT_MODEL_PATH
         logger.info("Загрузка текстовой модели: %s", model_path)
 
+        start_time = time.monotonic()
         self._tokenizer = AutoTokenizer.from_pretrained(
             model_path, trust_remote_code=True,
         )
@@ -41,7 +44,11 @@ class ModelManager:
         )
         self._model.eval()
         self._current_model_type = "text"
-        logger.info("Текстовая модель загружена")
+
+        duration = time.monotonic() - start_time
+        cv_model_load_duration_seconds.labels(model_type="text").observe(duration)
+        update_ram_usage()
+        logger.info("Текстовая модель загружена за %.1f сек", duration)
 
     def load_vision_model(self):
         """Загрузка Qwen2-VL-2B-Instruct для vision пайплайна."""
@@ -53,6 +60,7 @@ class ModelManager:
         model_path = settings.VISION_MODEL_PATH
         logger.info("Загрузка vision модели: %s", model_path)
 
+        start_time = time.monotonic()
         self._processor = AutoProcessor.from_pretrained(
             model_path, trust_remote_code=True,
         )
@@ -65,7 +73,11 @@ class ModelManager:
         )
         self._model.eval()
         self._current_model_type = "vision"
-        logger.info("Vision модель загружена")
+
+        duration = time.monotonic() - start_time
+        cv_model_load_duration_seconds.labels(model_type="vision").observe(duration)
+        update_ram_usage()
+        logger.info("Vision модель загружена за %.1f сек", duration)
 
     def _unload(self):
         """Выгрузка текущей модели для освобождения памяти."""

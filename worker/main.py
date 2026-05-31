@@ -1,9 +1,12 @@
-"""Точка входа воркера: запуск Kafka consumer loop."""
+"""Точка входа воркера: запуск Kafka consumer loop + HTTP metrics-сервер."""
 
 import asyncio
 import logging
+import threading
 
-from worker.consumer import install_signal_handlers, run_consumer
+from prometheus_client import start_http_server
+
+from worker.config import settings
 
 logging.basicConfig(
     level=logging.INFO,
@@ -13,7 +16,32 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _start_metrics_server():
+    """Запуск HTTP-сервера для экспорта метрик Prometheus в фоновом потоке."""
+    port = settings.METRICS_PORT
+    try:
+        start_http_server(port)
+        logger.info("Metrics-сервер запущен на порту %d", port)
+    except Exception:
+        logger.exception(
+            "Не удалось запустить metrics-сервер на порту %d. "
+            "Метрики Prometheus будут недоступны.",
+            port,
+        )
+
+
 def main():
+    # Импорт здесь, чтобы lazy-load тяжёлые зависимости (torch, transformers)
+    from worker.consumer import install_signal_handlers, run_consumer
+
+    # Запуск metrics-сервера в отдельном потоке
+    metrics_thread = threading.Thread(
+        target=_start_metrics_server,
+        daemon=True,
+        name="metrics-server",
+    )
+    metrics_thread.start()
+
     install_signal_handlers()
     logger.info("Запуск worker...")
     asyncio.run(run_consumer())

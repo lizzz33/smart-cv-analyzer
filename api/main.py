@@ -1,13 +1,15 @@
 """Точка входа FastAPI-приложения."""
 
 import logging
+import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from prometheus_client import generate_latest
 
 from api.config import settings
 from api.db.connection import engine
+from api.metrics import cv_api_request_duration_seconds
 from api.routers import tasks, upload
 from api.services.kafka_producer import start_producer, stop_producer
 
@@ -42,15 +44,55 @@ app.include_router(upload.router)
 app.include_router(tasks.router)
 
 
-@app.get("/health")
+# --- Middleware для метрик latency ---
+
+# Автогенерируемые пути FastAPI, исключаемые из метрик
+_METRICS_SKIP_PATHS = frozenset({"/docs", "/openapi.json", "/redoc"})
+# Тег маршрута для инфраструктурных эндпоинтов
+_METRICS_SKIP_TAGS = frozenset({"infra"})
+
+
+@app.middleware("http")
+async def metrics_middleware(request: Request, call_next):
+    """Замер длительности HTTP-запросов и запись в Prometheus Histogram."""
+    start = time.monotonic()
+    response: Response = await call_next(request)
+
+    route = request.scope.get("route")
+
+    # Пропускаем незарегистрированные маршруты (route=None),
+    # чтобы избежать cardinality explosion от уникальных URL
+    if route is None:
+        return response
+
+    # Пропускаем инфраструктурные эндпоинты по пути или тегу
+    if route.path in _METRICS_SKIP_PATHS:
+        return response
+    route_tags = getattr(route, "tags", [])
+    if _METRICS_SKIP_TAGS.intersection(route_tags):
+        return response
+
+    # route.path содержит шаблон вида /api/v1/tasks/{task_id},
+    # а не конкретный UUID — это предотвращает cardinality explosion
+    cv_api_request_duration_seconds.labels(
+        method=request.method,
+        endpoint=route.path,
+        status_code=response.status_code,
+    ).observe(time.monotonic() - start)
+
+    return response
+
+
+# --- Служебные эндпоинты ---
+
+
+@app.get("/health", tags=["infra"])
 async def health():
     """Проверка работоспособности сервиса."""
     return {"status": "ok"}
 
 
-@app.get("/metrics")
+@app.get("/metrics", tags=["infra"])
 async def metrics():
     """Экспорт метрик Prometheus."""
-    from starlette.responses import Response
-
     return Response(content=generate_latest(), media_type="text/plain")
