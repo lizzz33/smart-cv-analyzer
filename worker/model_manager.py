@@ -85,9 +85,6 @@ class ModelManager:
             return
 
         logger.info("Выгрузка модели: %s", self._current_model_type)
-        del self._model
-        del self._tokenizer
-        del self._processor
         self._model = None
         self._tokenizer = None
         self._processor = None

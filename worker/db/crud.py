@@ -1,12 +1,50 @@
 """Операции воркера с БД: обновление статуса, сохранение результата."""
 
 import json
+import logging
+import re
 import uuid
+from datetime import date
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from worker.schemas.cv import CVResult
+
+logger = logging.getLogger(__name__)
+
+
+def _parse_birth_date(value: str | None) -> date | None:
+    """Попытка распарсить строку с датой рождения.
+
+    Поддерживаемые форматы: YYYY-MM-DD, DD.MM.YYYY, DD/MM/YYYY.
+    Если строку не удалось распарсить, возвращаем None и логируем предупреждение.
+    """
+    if not value or not value.strip():
+        return None
+
+    value = value.strip()
+
+    # YYYY-MM-DD
+    m = re.match(r"^(\d{4})-(\d{1,2})-(\d{1,2})$", value)
+    if m:
+        try:
+            return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        except ValueError:
+            logger.warning("Некорректная дата рождения (YYYY-MM-DD): %s", value)
+            return None
+
+    # DD.MM.YYYY или DD/MM/YYYY
+    m = re.match(r"^(\d{1,2})[./](\d{1,2})[./](\d{4})$", value)
+    if m:
+        try:
+            return date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+        except ValueError:
+            logger.warning("Некорректная дата рождения (DD.MM.YYYY): %s", value)
+            return None
+
+    logger.warning("Не удалось распарсить дату рождения: %s", value)
+    return None
 
 
 def update_task_status(
@@ -74,7 +112,7 @@ def save_full_result(
                 "email": pd.email or None,
                 "phone": pd.phone or None,
                 "city": pd.city or None,
-                "birth_date": pd.birth_date or None,
+                "birth_date": _parse_birth_date(pd.birth_date),
             },
         )
 

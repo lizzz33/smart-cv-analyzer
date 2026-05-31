@@ -55,8 +55,8 @@ async def get_task_result(
     task_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ):
-    """Возвращает результат обработки, если задача завершена."""
-    result = await crud.get_task_with_result(session=db, task_id=task_id)
+    """Возвращает нормализованный результат обработки, если задача завершена."""
+    result = await crud.get_task_with_normalized(session=db, task_id=task_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Task not found")
 

@@ -36,7 +36,7 @@ ACCEPTED_MIME_TYPES = [
 ]
 
 # ---------------------------------------------------------------------------
-# Параметры страницы (BUG-5: page_icon без эмодзи)
+# Параметры страницы
 # ---------------------------------------------------------------------------
 st.set_page_config(
     page_title="CV Analyzer",
@@ -104,7 +104,7 @@ def check_task_status(task_id: str) -> dict | None:
         logger.exception("RequestException при polling task_id=%s", task_id)
         return None
 
-    # BUG-2: явная обработка HTTP-кодов
+    # Явная обработка HTTP-кодов
     if response.status_code == 404:
         logger.warning("Задача %s не найдена (404)", task_id)
         return None
@@ -130,7 +130,7 @@ def fetch_result(task_id: str) -> dict | None:
         )
         if response.status_code == 200:
             result = response.json()
-            # BUG-8: валидация структуры ответа API
+            # Валидация структуры ответа API
             if not isinstance(result, dict) or "data" not in result:
                 st.error("Получен некорректный формат результата от сервера.")
                 logger.warning(
@@ -373,7 +373,7 @@ def polling_fragment():
     if not task_id:
         return
 
-    # BUG-3: кнопка отмены — кликабельна между запусками fragment
+    # Кнопка отмены — кликабельна между запусками fragment
     if st.button("Отменить ожидание"):
         logger.info("Polling отменён пользователем для task_id=%s", task_id)
         clear_polling_state()
@@ -436,7 +436,7 @@ def polling_fragment():
     attempts += 1
     st.session_state["poll_attempts"] = attempts
 
-    # BUG-4: используем estimated_seconds для расчёта прогресса
+    # Расчёт прогресса на основе estimated_seconds
     estimated = st.session_state.get("estimated_seconds", 150)
     elapsed = time.time() - st.session_state.get("poll_start_time", time.time())
     progress_pct = min(int(elapsed / estimated * 100), 95)

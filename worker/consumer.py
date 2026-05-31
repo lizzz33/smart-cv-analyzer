@@ -141,43 +141,56 @@ async def process_message(msg_data: dict) -> None:
 
 
 async def _consume_loop(consumer: AIOKafkaConsumer) -> None:
-    """Внутренний цикл потребления сообщений."""
-    async for message in consumer:
+    """Внутренний цикл потребления сообщений.
+
+    Использует getmany с таймаутом 2 сек вместо async for,
+    чтобы периодически проверять флаг _shutting_down и корректно
+    завершать работу даже при отсутствии новых сообщений.
+    """
+    while not _shutting_down:
+        try:
+            batches = await consumer.getmany(timeout_ms=2000, max_records=1)
+        except Exception:
+            logger.exception("Ошибка при получении сообщений из Kafka")
+            continue
+
         if _shutting_down:
             logger.info("Shutdown — завершаю обработку")
             break
 
-        # Парсинг JSON
-        try:
-            msg_data = json.loads(message.value.decode("utf-8"))
-            logger.info(
-                "Получено сообщение: partition=%d, offset=%d",
-                message.partition,
-                message.offset,
-            )
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            logger.exception("Некорректное сообщение, пропуск: offset=%d", message.offset)
-            await consumer.commit()
-            continue
+        for _tp, messages in batches.items():
+            for message in messages:
+                # Парсинг JSON
+                try:
+                    msg_data = json.loads(message.value.decode("utf-8"))
+                    logger.info(
+                        "Получено сообщение: partition=%d, offset=%d",
+                        message.partition,
+                        message.offset,
+                    )
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    logger.exception("Некорректное сообщение, пропуск: offset=%d", message.offset)
+                    await consumer.commit()
+                    continue
 
-        # Валидация схемы сообщения
-        validation_error = _validate_message(msg_data)
-        if validation_error:
-            logger.warning("Пропуск: %s: offset=%d", validation_error, message.offset)
-            await consumer.commit()
-            continue
+                # Валидация схемы сообщения
+                validation_error = _validate_message(msg_data)
+                if validation_error:
+                    logger.warning("Пропуск: %s: offset=%d", validation_error, message.offset)
+                    await consumer.commit()
+                    continue
 
-        # Обработка с защитой от краша
-        try:
-            await process_message(msg_data)
-        except Exception:
-            logger.exception("Необработанная ошибка: offset=%d", message.offset)
+                # Обработка с защитой от краша
+                try:
+                    await process_message(msg_data)
+                except Exception:
+                    logger.exception("Необработанная ошибка: offset=%d", message.offset)
 
-        # Коммит offset в любом случае
-        try:
-            await consumer.commit()
-        except CommitFailedError:
-            logger.exception("Ошибка коммита offset")
+                # Коммит offset в любом случае
+                try:
+                    await consumer.commit()
+                except CommitFailedError:
+                    logger.exception("Ошибка коммита offset")
 
 
 async def run_consumer() -> None:

@@ -137,9 +137,11 @@ async def get_task_with_normalized(
 
     sk = resume.skills
     skills = {
-        "technical": sk.technical,
-        "professional": sk.professional,
-        "languages": sk.languages,
+        "hard_skills": {
+            "technical": sk.technical,
+            "professional": sk.professional,
+            "languages": sk.languages,
+        },
         "soft_skills": sk.soft_skills,
     } if sk else None
 

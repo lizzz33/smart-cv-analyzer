@@ -5,6 +5,7 @@ import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import generate_latest
 
 from api.config import settings
@@ -42,6 +43,14 @@ app = FastAPI(
 
 app.include_router(upload.router)
 app.include_router(tasks.router)
+
+# CORS: разрешаем запросы от Streamlit UI
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
 
 
 # --- Middleware для метрик latency ---
