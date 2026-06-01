@@ -31,9 +31,7 @@ models/
 
 # Данные экспериментов
 results/
-dataset/
 experiments/
-src/
 
 # Результаты обработок (корень)
 cv_*.json

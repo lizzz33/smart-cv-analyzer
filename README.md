@@ -18,7 +18,7 @@
                  ┌─────┘    └──────────┐
                  ▼                     ▼
            ┌──────────┐         ┌────────────┐
-           │ PostgreSQL│         │   Kafka    │
+           │ PostgreSQL│         │  Redpanda  │
            │  (5432)  │         │   (9092)   │
            └────┬─────┘         └─────┬──────┘
                 │                     │
@@ -198,7 +198,7 @@ curl -X POST http://localhost:8000/api/v1/upload \
 | Переменная              | По умолчанию                        | Описание                |
 |-------------------------|--------------------------------------|-------------------------|
 | `DATABASE_URL`          | `postgresql+asyncpg://...`          | Строка подключения к БД |
-| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092`                   | Адрес Kafka             |
+| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092`                   | Адрес Redpanda          |
 | `KAFKA_TOPIC`           | `cv-tasks`                          | Топик для задач         |
 | `MAX_FILE_SIZE_MB`      | `1`                                 | Макс. размер файла (МБ) |
 | `UPLOAD_DIR`            | `/tmp/cv_uploads`                   | Директория для файлов   |
@@ -208,7 +208,7 @@ curl -X POST http://localhost:8000/api/v1/upload \
 | Переманная              | По умолчанию                        | Описание                |
 |-------------------------|--------------------------------------|-------------------------|
 | `DATABASE_URL`          | `postgresql://...`                  | Строка подключения к БД |
-| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092`                   | Адрес Kafka             |
+| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092`                   | Адрес Redpanda          |
 | `KAFKA_TOPIC`           | `cv-tasks`                          | Топик для задач         |
 | `TEXT_MODEL_PATH`       | `/models/Qwen2.5-3B`               | Путь к текстовой модели |
 | `VISION_MODEL_PATH`     | `/models/Qwen2-VL-2B-Instruct`     | Путь к vision модели    |
@@ -252,7 +252,7 @@ smart-cv-analyzer/
 │   │   └── tasks.py            # GET /api/v1/tasks/{id}[/result]
 │   ├── services/
 │   │   ├── file_validator.py   # Валидация формата, MIME, размера
-│   │   └── kafka_producer.py   # Отправка задач в Kafka
+│   │   └── kafka_producer.py   # Отправка задач в Redpanda
 │   ├── db/
 │   │   ├── connection.py       # AsyncSession
 │   │   ├── models.py           # SQLAlchemy модели
@@ -261,7 +261,7 @@ smart-cv-analyzer/
 │
 ├── worker/                     # Обработка резюме
 │   ├── main.py                 # Точка входа, metrics-сервер
-│   ├── consumer.py             # Kafka consumer loop
+│   ├── consumer.py             # Redpanda consumer loop
 │   ├── model_manager.py        # Lazy-load/Unload моделей
 │   ├── pipelines/
 │   │   ├── text_pipeline.py    # Qwen2.5-3B (PDF, DOCX, ODT)
@@ -317,7 +317,7 @@ docker compose down -v
 
 - **Python 3.12**, FastAPI, Streamlit
 - **PostgreSQL 16** + SQLAlchemy 2.0
-- **Apache Kafka** (via aiokafka)
+- **Redpanda** (Kafka-совместимый брокер, via aiokafka)
 - **PyTorch** + Hugging Face Transformers (Qwen2.5-3B, Qwen2-VL-2B)
 - **Docker Compose** для оркестрации
 - **Prometheus** + **Grafana** для мониторинга
