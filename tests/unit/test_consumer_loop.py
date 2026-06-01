@@ -20,20 +20,25 @@ def _kafka_message(value: dict):
     return msg
 
 
-class _AsyncIter:
-    """Хелпер: оборачивает список в async-итератор для `async for`."""
+def _make_getmany(consumer_mod, *batches):
+    """Создаёт async-функцию getmany, возвращающую batches по порядку.
 
-    def __init__(self, items):
-        self._items = iter(items)
+    Каждый аргумент — dict {topic_partition: [messages]}.
+    После последнего аргумента устанавливает _shutting_down=True и возвращает {}.
+    """
+    call_count = 0
 
-    def __aiter__(self):
-        return self
+    async def _getmany(**kwargs):
+        nonlocal call_count
+        if call_count < len(batches):
+            result = batches[call_count]
+            call_count += 1
+            return result
+        # Больше сообщений нет — сигналим завершение
+        consumer_mod._shutting_down = True
+        return {}
 
-    async def __anext__(self):
-        try:
-            return next(self._items)
-        except StopIteration:
-            raise StopAsyncIteration
+    return _getmany
 
 
 # ---------------------------------------------------------------------------
@@ -44,16 +49,23 @@ class _AsyncIter:
 @pytest.mark.asyncio
 async def test_consume_loop_skips_invalid_json():
     """Битый JSON в сообщении — логируется, сообщение пропускается, offset коммитится."""
+    import worker.consumer as mod
+
     bad_msg = MagicMock()
     bad_msg.value = b"not a valid json{{{"
     bad_msg.partition = 0
     bad_msg.offset = 42
 
+    tp = MagicMock()
     consumer = MagicMock()
-    consumer.__aiter__ = MagicMock(return_value=_AsyncIter([bad_msg]))
+    consumer.getmany = _make_getmany(mod, {tp: [bad_msg]})
     consumer.commit = AsyncMock()
 
-    await _consume_loop(consumer)
+    mod._shutting_down = False
+    try:
+        await _consume_loop(consumer)
+    finally:
+        mod._shutting_down = False
 
     # Коммит вызван (сообщение пропущено, но offset закоммичен)
     consumer.commit.assert_awaited()
@@ -69,18 +81,11 @@ async def test_consume_loop_stops_on_shutdown():
     """При получении сигнала _shutting_down цикл прерывается."""
     import worker.consumer as mod
 
-    valid_msg = _kafka_message({
-        "task_id": str(uuid.uuid4()),
-        "file_path": "/tmp/test.pdf",
-        "file_type": "pdf",
-        "file_name": "test.pdf",
-    })
-
     consumer = MagicMock()
-    consumer.__aiter__ = MagicMock(return_value=_AsyncIter([valid_msg]))
+    consumer.getmany = AsyncMock(return_value={})
     consumer.commit = AsyncMock()
 
-    # Устанавливаем флаг завершения
+    # Устанавливаем флаг завершения — цикл while не войдёт
     mod._shutting_down = True
     try:
         await _consume_loop(consumer)
@@ -170,6 +175,8 @@ async def test_process_message_invalid_cv_data():
 @pytest.mark.asyncio
 async def test_consume_loop_handles_commit_failed():
     """CommitFailedError не прерывает цикл — consumer продолжает работу."""
+    import worker.consumer as mod
+
     valid_msg = _kafka_message({
         "task_id": str(uuid.uuid4()),
         "file_path": "/tmp/test.pdf",
@@ -177,14 +184,19 @@ async def test_consume_loop_handles_commit_failed():
         "file_name": "test.pdf",
     })
 
+    tp = MagicMock()
     consumer = MagicMock()
-    consumer.__aiter__ = MagicMock(return_value=_AsyncIter([valid_msg]))
+    consumer.getmany = _make_getmany(mod, {tp: [valid_msg]})
     consumer.commit = AsyncMock(side_effect=CommitFailedError())
 
     with (
         patch("worker.consumer.process_message", new_callable=AsyncMock),
     ):
-        await _consume_loop(consumer)
+        mod._shutting_down = False
+        try:
+            await _consume_loop(consumer)
+        finally:
+            mod._shutting_down = False
 
     # commit вызван, CommitFailedError не прервал цикл
     consumer.commit.assert_awaited()

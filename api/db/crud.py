@@ -57,24 +57,6 @@ async def get_task(session: AsyncSession, task_id: uuid.UUID) -> Task | None:
     return result.scalar_one_or_none()
 
 
-async def get_task_with_result(
-    session: AsyncSession, task_id: uuid.UUID
-) -> dict | None:
-    """Возвращает задачу с raw_json резюме или None."""
-    task = await get_task(session, task_id)
-    if task is None:
-        return None
-    result = await session.execute(
-        select(Resume.raw_json).where(Resume.task_id == task_id)
-    )
-    row = result.scalar_one_or_none()
-    return {
-        "task_id": str(task.id),
-        "status": task.status,
-        "data": row,
-    }
-
-
 async def get_task_with_normalized(
     session: AsyncSession, task_id: uuid.UUID
 ) -> dict | None:

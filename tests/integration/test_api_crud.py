@@ -55,15 +55,6 @@ async def test_count_in_progress(async_session):
     assert count == 2
 
 
-async def test_get_task_with_result_no_resume(async_session):
-    created = await crud.create_task(async_session, "resume.pdf", "pdf", 100)
-
-    result = await crud.get_task_with_result(async_session, created.id)
-    assert result is not None
-    assert result["status"] == "pending"
-    assert result["data"] is None
-
-
 async def test_get_task_with_normalized_no_resume(async_session):
     created = await crud.create_task(async_session, "resume.pdf", "pdf", 100)
 
