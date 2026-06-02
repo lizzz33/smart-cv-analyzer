@@ -66,7 +66,7 @@ class ModelManager:
         )
         self._model = Qwen2VLForConditionalGeneration.from_pretrained(
             model_path,
-            torch_dtype=torch.float32,
+            torch_dtype="auto",
             device_map="cpu",
             trust_remote_code=True,
             attn_implementation="eager",

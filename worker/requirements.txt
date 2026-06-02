@@ -1,8 +1,11 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
 aiokafka==0.10.*
+pydantic-settings==2.*
 sqlalchemy==2.0.*
 psycopg2-binary==2.9.*
-transformers==4.41.*
-torch==2.3.*
+transformers==4.45.*
+accelerate>=0.26.0
+torch==2.3.1+cpu
 qwen-vl-utils==0.0.*
 pdfplumber==0.11.*
 python-docx==1.1.*

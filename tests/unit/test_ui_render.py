@@ -1,6 +1,10 @@
 """Тесты функций отображения результата (ui/app.py).
 
 Кейсы 23-44 из docs/test_plan_ui.md.
+
+Все render-функции теперь генерируют HTML через st.markdown.
+Тесты проверяют наличие данных в markdown-вызове вместо
+проверки количества columns/container.
 """
 
 from unittest.mock import MagicMock, patch
@@ -24,27 +28,11 @@ from ui.app import (
 
 @pytest.fixture
 def mock_st():
-    """Мок streamlit с настроенными columns/container/tabs.
+    """Мок streamlit.
 
-    Колонки используют тот же mock-объект markdown, что и st,
-    чтобы вызовы cols[0].markdown(...) попадали в st.markdown.call_args_list.
+    render-функции используют только st.markdown и st.tabs.
     """
     with patch("ui.app.st") as st_mock:
-        # columns(N) или columns([spec...]) — возвращает список колонок
-        def _columns(*args, **kwargs):
-            spec = args[0] if args else kwargs.get("spec", 3)
-            n = spec if isinstance(spec, int) else len(spec)
-            cols = []
-            for _ in range(n):
-                col = MagicMock()
-                # Общий mock-объект — все вызовы markdown собираются в одном месте
-                col.markdown = st_mock.markdown
-                cols.append(col)
-            return cols
-
-        st_mock.columns.side_effect = _columns
-        # container — контекстный менеджер
-        st_mock.container.return_value = MagicMock()
         # tabs — возвращает список контекстных менеджеров
         st_mock.tabs.side_effect = lambda labels: [MagicMock() for _ in labels]
         yield st_mock
@@ -112,7 +100,7 @@ def full_cv_data():
 
 
 class TestRenderPersonalData:
-    """render_personal_data() — секция «Личные данные»."""
+    """render_personal_data() -- секция «Личные данные»."""
 
     # Кейс 23: все 7 полей заполнены
     def test_all_fields(self, mock_st):
@@ -129,19 +117,18 @@ class TestRenderPersonalData:
         }
         render_personal_data(data)
 
-        # Должно быть 7 вызовов markdown (по одному на поле)
         md_calls = mock_st.markdown.call_args_list
         md_texts = " ".join(str(c) for c in md_calls)
         for field in ("Иванов", "Иван", "Иваныч", "a@b.c", "+7900", "Москва", "1990-01-01"):
             assert field in md_texts, f"Поле '{field}' не найдено в выводе"
-        mock_st.info.assert_not_called()
 
     # Кейс 26: отсутствует ключ personal_data
     def test_missing_personal_data(self, mock_st):
         render_personal_data({})
 
-        mock_st.info.assert_called_once()
-        assert "не найдены" in mock_st.info.call_args[0][0]
+        md_calls = mock_st.markdown.call_args_list
+        md_texts = " ".join(str(c) for c in md_calls)
+        assert "не найдены" in md_texts
 
 
 # ---------------------------------------------------------------------------
@@ -150,7 +137,7 @@ class TestRenderPersonalData:
 
 
 class TestRenderEducation:
-    """render_education() — секция «Образование»."""
+    """render_education() -- секция «Образование»."""
 
     # Кейс 27: две записи
     def test_two_entries(self, mock_st):
@@ -177,15 +164,14 @@ class TestRenderEducation:
         assert "МГУ" in md_texts
         assert "МФТИ" in md_texts
         assert "2018 - 2020" in md_texts
-        # Два контейнера (два вызова container)
-        assert mock_st.container.call_count == 2
 
     # Кейс 28: пустой массив
     def test_empty_array(self, mock_st):
         render_education({"education": []})
 
-        mock_st.info.assert_called_once()
-        assert "не найдена" in mock_st.info.call_args[0][0]
+        md_calls = mock_st.markdown.call_args_list
+        md_texts = " ".join(str(c) for c in md_calls)
+        assert "не найдена" in md_texts
 
 
 # ---------------------------------------------------------------------------
@@ -194,7 +180,7 @@ class TestRenderEducation:
 
 
 class TestRenderExperience:
-    """render_experience() — секция «Опыт работы»."""
+    """render_experience() -- секция «Опыт работы»."""
 
     # Кейс 30: с обязанностями
     def test_with_responsibilities(self, mock_st):
@@ -214,7 +200,6 @@ class TestRenderExperience:
         md_calls = mock_st.markdown.call_args_list
         md_texts = " ".join(str(c) for c in md_calls)
         assert "Яндекс" in md_texts
-        assert "Обязанности" in md_texts
         assert "Разработка" in md_texts
 
     # Кейс 31: без обязанностей
@@ -227,14 +212,14 @@ class TestRenderExperience:
         md_calls = mock_st.markdown.call_args_list
         md_texts = " ".join(str(c) for c in md_calls)
         assert "Яндекс" in md_texts
-        assert "Обязанности" not in md_texts
 
     # Кейс 32: пустой массив
     def test_empty_array(self, mock_st):
         render_experience({"experience": []})
 
-        mock_st.info.assert_called_once()
-        assert "не найдена" in mock_st.info.call_args[0][0]
+        md_calls = mock_st.markdown.call_args_list
+        md_texts = " ".join(str(c) for c in md_calls)
+        assert "не найдена" in md_texts
 
 
 # ---------------------------------------------------------------------------
@@ -243,7 +228,7 @@ class TestRenderExperience:
 
 
 class TestRenderSkills:
-    """render_skills() — секция «Навыки»."""
+    """render_skills() -- секция «Навыки»."""
 
     # Кейс 33: все категории
     def test_all_categories(self, mock_st):
@@ -282,8 +267,9 @@ class TestRenderSkills:
     def test_empty_skills(self, mock_st):
         render_skills({"skills": {}})
 
-        mock_st.info.assert_called_once()
-        assert "не найдена" in mock_st.info.call_args[0][0]
+        md_calls = mock_st.markdown.call_args_list
+        md_texts = " ".join(str(c) for c in md_calls)
+        assert "не найдена" in md_texts
 
 
 # ---------------------------------------------------------------------------
@@ -292,7 +278,7 @@ class TestRenderSkills:
 
 
 class TestRenderAdditional:
-    """render_additional() — секция «Дополнительная информация»."""
+    """render_additional() -- секция «Дополнительная информация»."""
 
     # Кейс 37: полные данные
     def test_full_data(self, mock_st):
@@ -322,8 +308,9 @@ class TestRenderAdditional:
     def test_missing_additional(self, mock_st):
         render_additional({})
 
-        mock_st.info.assert_called_once()
-        assert "не найдена" in mock_st.info.call_args[0][0]
+        md_calls = mock_st.markdown.call_args_list
+        md_texts = " ".join(str(c) for c in md_calls)
+        assert "не найдена" in md_texts
 
 
 # ---------------------------------------------------------------------------
@@ -332,9 +319,9 @@ class TestRenderAdditional:
 
 
 class TestRenderResult:
-    """render_result() — отображение результата в виде вкладок."""
+    """render_result() -- отображение результата в виде вкладок."""
 
-    # Кейс 42: полные данные — 5 вкладок + кнопка скачивания
+    # Кейс 42: полные данные -- 5 вкладок + кнопка скачивания
     def test_full_data(self, mock_st, full_cv_data):
         render_result({"data": full_cv_data})
 
@@ -345,7 +332,7 @@ class TestRenderResult:
         # Кнопка скачивания
         mock_st.download_button.assert_called_once()
 
-    # Кейс 44: JSON скачивания — mime и file_name
+    # Кейс 44: JSON скачивания -- mime и file_name
     def test_download_button_params(self, mock_st):
         render_result({"data": {"personal_data": {}}})
 

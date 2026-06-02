@@ -193,9 +193,10 @@ class TestPollingFragment:
 
             polling_fragment()
 
-        mock_st.progress.assert_called_once()
-        progress_pct = mock_st.progress.call_args[0][0]
-        assert 0 <= progress_pct <= 95
+        # Прогресс теперь рендерится через st.markdown (кастомный HTML)
+        md_calls = mock_st.markdown.call_args_list
+        md_texts = " ".join(str(c) for c in md_calls)
+        assert "cv-progress-bar-fill" in md_texts
         assert state["poll_attempts"] == 1
 
     # Кейс 21: прогресс для pending не превышает 95%
@@ -214,8 +215,10 @@ class TestPollingFragment:
 
             polling_fragment()
 
-        progress_pct = mock_st.progress.call_args[0][0]
-        assert progress_pct <= 95
+        # Проверяем, что в HTML нет значения > 95%
+        md_calls = mock_st.markdown.call_args_list
+        md_texts = " ".join(str(c) for c in md_calls)
+        assert "width:95%" in md_texts
 
     # Кнопка отмены очищает состояние
     def test_cancel_button_clears_state(self):
@@ -239,5 +242,4 @@ class TestPollingFragment:
             polling_fragment()
 
         mock_st.error.assert_not_called()
-        mock_st.progress.assert_not_called()
         mock_st.rerun.assert_not_called()

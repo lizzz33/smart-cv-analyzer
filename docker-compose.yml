@@ -10,6 +10,7 @@ services:
       - ./migrations:/docker-entrypoint-initdb.d
     ports:
       - "5432:5432"
+    mem_limit: 256m
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d cv_analyzer"]
       interval: 10s
@@ -17,7 +18,7 @@ services:
       retries: 5
 
   redpanda:
-    image: redpandadata/redpanda:latest
+    image: redpandadata/redpanda:v24.3.6
     command:
       - redpanda
       - start
@@ -64,6 +65,7 @@ services:
       - "8000:8000"
     volumes:
       - cv_uploads:/tmp/cv_uploads
+    mem_limit: 256m
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s
@@ -85,8 +87,8 @@ services:
       VISION_MODEL_PATH: /models/Qwen2-VL-2B-Instruct
     volumes:
       - cv_uploads:/tmp/cv_uploads
-      - ./models:/models:ro
-    mem_limit: 9g
+      - model_data:/models
+    mem_limit: 10g
     restart: unless-stopped
     deploy:
       replicas: 1
@@ -133,5 +135,6 @@ volumes:
   postgres_data:
   cv_uploads:
   redpanda_data:
+  model_data:
   prometheus_data:
   grafana_data:

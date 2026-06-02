@@ -44,14 +44,15 @@ class TestInitialState:
     """Начальное состояние страницы без загруженного файла."""
 
     def test_page_elements(self):
-        """Кейс 45: заголовок «CV Analyzer», expander с инструкцией."""
+        """Кейс 45: hero с «CV Analyzer» в markdown, file_uploader."""
         from streamlit.testing.v1 import AppTest
 
         at = AppTest.from_file(APP_PATH)
         at.run(timeout=30)
 
-        assert at.title[0].value == "CV Analyzer"
-        assert len(at.expander) >= 1
+        # Hero-секция рендерится через st.markdown, не st.title
+        md_texts = " ".join(m.value for m in at.markdown)
+        assert "CV Analyzer" in md_texts
         # file_uploader рендерится как UnknownElement (AppTest 1.45
         # не предоставляет отдельный атрибут)
         child_types = [type(c).__name__ for c in at.main.children.values()]
@@ -79,7 +80,7 @@ class TestValidation:
     """Клиентская валидация размера файла."""
 
     def test_file_too_large(self):
-        """Кейс 47: файл > 1 МБ — st.error с «превышает»."""
+        """Кейс 47: файл > 1 МБ -- st.error с «превышает»."""
         mock_file = _mock_file("big.pdf", int(1.5 * 1024 * 1024))
 
         with patch("ui.app.st") as mock_st, \
@@ -96,7 +97,7 @@ class TestValidation:
         assert "превышает" in error_text
 
     def test_file_exactly_1mb(self):
-        """Кейс 48: файл ровно 1 МБ — ошибка размера НЕ показывается."""
+        """Кейс 48: файл ровно 1 МБ -- ошибка размера НЕ показывается."""
         mock_file = _mock_file("exact.pdf", MAX_FILE_SIZE_BYTES)
 
         with patch("ui.app.st") as mock_st, \
@@ -114,7 +115,7 @@ class TestValidation:
         assert len(size_errors) == 0
 
     def test_file_under_1mb(self):
-        """Кейс 49: файл < 1 МБ — ошибка размера НЕ показывается."""
+        """Кейс 49: файл < 1 МБ -- ошибка размера НЕ показывается."""
         mock_file = _mock_file("small.pdf", 512 * 1024)
 
         with patch("ui.app.st") as mock_st, \
@@ -250,7 +251,7 @@ class TestResetState:
             reset_buttons[0].click()
             at.run(timeout=30)
 
-            # task_id должен быть удалён — bracket access выбрасывает KeyError
+            # task_id должен быть удалён
             try:
                 _ = at.session_state["task_id"]
                 task_cleared = False
