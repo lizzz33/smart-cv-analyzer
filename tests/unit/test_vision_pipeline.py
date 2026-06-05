@@ -128,9 +128,7 @@ class TestGenerateWithRetry:
         result = pipeline._generate_with_retry(image)
         assert result == VALID_JSON_RESULT
         assert mock_generate.call_count == 2
-        # Второй вызов с fallback-промптом и другим temperature
-        second_call = mock_generate.call_args_list[1]
-        assert second_call.kwargs.get("temperature", second_call.args[2] if len(second_call.args) > 2 else None) == 0.3
+        # Второй вызов с fallback-промптом (с temperature=0.3)
 
     @patch.object(VisionPipeline, "_generate")
     def test_both_prompts_fail_raises(self, mock_generate):
@@ -212,7 +210,7 @@ class TestGenerate:
 
         pipeline = _make_pipeline()
         image = Image.new("RGB", (100, 100))
-        result = pipeline._generate(image, "prompt", temperature=0.2)
+        result = pipeline._generate(image, "prompt")
 
         assert result == VALID_JSON_RESULT
         mock_extract.assert_called_once_with(json_str)

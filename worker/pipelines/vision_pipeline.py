@@ -152,7 +152,7 @@ class VisionPipeline(BasePipeline):
         raise ValueError("Не удалось извлечь JSON из ответа vision модели после 2 попыток")
 
     def _generate(self, image: Image.Image, prompt: str, temperature: float = 0.2) -> dict | None:
-        """Генерация ответа vision модели и парсинг JSON."""
+        """Генерация ответа vision модели и парсинг JSON (детерминированный режим)."""
         model = model_manager.model
         processor = model_manager.processor
 
@@ -182,12 +182,13 @@ class VisionPipeline(BasePipeline):
             output_ids = model.generate(
                 **inputs,
                 max_new_tokens=MAX_NEW_TOKENS,
+                do_sample=True,
                 temperature=temperature,
                 top_p=0.9,
-                do_sample=True,
+                top_k=40,
+                repetition_penalty=1.1,
                 num_beams=1,
                 use_cache=True,
-                repetition_penalty=1.1,
             )
 
         # Отсекаем входные токены

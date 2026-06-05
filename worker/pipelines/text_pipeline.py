@@ -166,6 +166,9 @@ class TextPipeline(BasePipeline):
                 **inputs,
                 max_new_tokens=MAX_NEW_TOKENS,
                 do_sample=False,
+                temperature=None,
+                top_p=None,
+                top_k=None,
                 use_cache=True,
             )
 

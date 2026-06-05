@@ -44,10 +44,11 @@ services:
       - redpanda_data:/var/lib/redpanda/data
     mem_limit: 512m
     healthcheck:
-      test: ["CMD", "rpk", "cluster", "health"]
+      test: ["CMD-SHELL", "rpk cluster health && timeout 5 bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/9092'"]
       interval: 15s
       timeout: 10s
       retries: 5
+      start_period: 30s
     restart: unless-stopped
 
   api:
@@ -60,7 +61,9 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres/cv_analyzer
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      KAFKA_TOPIC: cv-tasks
       MAX_FILE_SIZE_MB: 1
+      UPLOAD_DIR: /tmp/cv_uploads
     ports:
       - "8000:8000"
     volumes:
@@ -83,12 +86,16 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres/cv_analyzer
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      KAFKA_TOPIC: cv-tasks
       TEXT_MODEL_PATH: /models/Qwen2.5-3B
       VISION_MODEL_PATH: /models/Qwen2-VL-2B-Instruct
+      METRICS_PORT: 8001
     volumes:
       - cv_uploads:/tmp/cv_uploads
       - model_data:/models
-    mem_limit: 10g
+    expose:
+      - "8001"
+    mem_limit: 16g
     restart: unless-stopped
     deploy:
       replicas: 1

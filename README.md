@@ -39,8 +39,8 @@
 ### Предварительные требования
 
 - Docker и Docker Compose
-- ~15 ГБ свободного места на диске (модели + образы)
-- Минимум 12 ГБ RAM
+- ~20 ГБ свободного места на диске (модели ~11 ГБ + образы ~9 ГБ)
+- Минимум 20 ГБ RAM (worker: 16 ГБ + остальные сервисы: ~4 ГБ)
 
 ### 1. Клонировать репозиторий
 
@@ -111,12 +111,17 @@ docker compose up -d
 
 При первом запуске Docker соберёт образы (5-10 минут). После запуска:
 
-| Сервис       | URL                          | Назначение                 |
-|--------------|------------------------------|----------------------------|
-| UI           | http://localhost:8501        | Загрузка и просмотр резюме |
-| API          | http://localhost:8000/docs   | Swagger UI                 |
-| Prometheus   | http://localhost:9090        | Метрики                    |
-| Grafana      | http://localhost:3000        | Дашборды (admin/admin)     |
+| Сервис       | URL                          | Назначение                 | RAM     |
+|--------------|------------------------------|----------------------------|---------|
+| UI           | http://localhost:8501        | Загрузка и просмотр резюме | 256 МБ  |
+| API          | http://localhost:8000/docs   | Swagger UI                 | 256 МБ  |
+| Worker       | —                            | Обработка резюме           | 16 ГБ   |
+| PostgreSQL   | localhost:5432               | База данных                | 256 МБ  |
+| Redpanda     | localhost:9092               | Брокер сообщений           | 512 МБ  |
+| Prometheus   | http://localhost:9090        | Метрики                    | 256 МБ  |
+| Grafana      | http://localhost:3000        | Дашборды (admin/admin)     | 256 МБ  |
+
+**Итого: ~18.4 ГБ RAM**
 
 ### 5. Использовать
 
@@ -198,17 +203,17 @@ curl -X POST http://localhost:8000/api/v1/upload \
 | Переменная              | По умолчанию                        | Описание                |
 |-------------------------|--------------------------------------|-------------------------|
 | `DATABASE_URL`          | `postgresql+asyncpg://...`          | Строка подключения к БД |
-| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092`                   | Адрес Redpanda          |
+| `KAFKA_BOOTSTRAP_SERVERS` | `redpanda:9092` (docker-compose)  | Адрес Redpanda          |
 | `KAFKA_TOPIC`           | `cv-tasks`                          | Топик для задач         |
 | `MAX_FILE_SIZE_MB`      | `1`                                 | Макс. размер файла (МБ) |
 | `UPLOAD_DIR`            | `/tmp/cv_uploads`                   | Директория для файлов   |
 
 ### Worker
 
-| Переманная              | По умолчанию                        | Описание                |
+| Переменная              | По умолчанию                        | Описание                |
 |-------------------------|--------------------------------------|-------------------------|
 | `DATABASE_URL`          | `postgresql://...`                  | Строка подключения к БД |
-| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092`                   | Адрес Redpanda          |
+| `KAFKA_BOOTSTRAP_SERVERS` | `redpanda:9092` (docker-compose)  | Адрес Redpanda          |
 | `KAFKA_TOPIC`           | `cv-tasks`                          | Топик для задач         |
 | `TEXT_MODEL_PATH`       | `/models/Qwen2.5-3B`               | Путь к текстовой модели |
 | `VISION_MODEL_PATH`     | `/models/Qwen2-VL-2B-Instruct`     | Путь к vision модели    |
@@ -216,9 +221,11 @@ curl -X POST http://localhost:8000/api/v1/upload \
 
 ### UI
 
-| Переменная  | По умолчанию           | Описание        |
-|-------------|------------------------|-----------------|
-| `API_URL`   | `http://localhost:8000` | Адрес API       |
+| Переменная  | По умолчанию                                 | Описание        |
+|-------------|-----------------------------------------------|-----------------|
+| `API_URL`   | `http://api:8000` (docker-compose)           | Адрес API       |
+
+Примечание: при локальной разработке используйте `http://localhost:8000`
 
 ## Разработка
 
@@ -317,7 +324,7 @@ docker compose down -v
 
 - **Python 3.12**, FastAPI, Streamlit
 - **PostgreSQL 16** + SQLAlchemy 2.0
-- **Redpanda** (Kafka-совместимый брокер, via aiokafka)
+- **Redpanda v24.3.6** (Kafka-совместимый брокер, via aiokafka)
 - **PyTorch** + Hugging Face Transformers (Qwen2.5-3B, Qwen2-VL-2B)
 - **Docker Compose** для оркестрации
-- **Prometheus** + **Grafana** для мониторинга
+- **Prometheus v2.51.0** + **Grafana 10.4.0** для мониторинга

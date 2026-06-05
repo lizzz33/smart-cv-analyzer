@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     TEXT_MODEL_PATH: str = "/models/Qwen2.5-3B"
     VISION_MODEL_PATH: str = "/models/Qwen2-VL-2B-Instruct"
     METRICS_PORT: int = 8001
+    # Seed для детерминированной генерации (при None используется случайный)
+    GENERATION_SEED: int | None = None
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 

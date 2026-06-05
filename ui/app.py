@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 API_URL = os.environ.get("API_URL", "http://localhost:8000")
 POLL_INTERVAL_SEC = 5  # секунд между запросами статуса
-MAX_POLL_ATTEMPTS = 2
+MAX_POLL_ATTEMPTS = 60  # = 300 сек (5 минут) максимальное автоматическое ожидание
 MAX_FILE_SIZE_MB = 1
 MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
 
@@ -180,51 +180,51 @@ def _icon(name: str, size: int = 20) -> str:
 # ---------------------------------------------------------------------------
 _THEME_VARS = {
     "light": {
-        "primary": "#4F46E5",
+        "primary": "#6366F1",
         "primary-light": "#EEF2FF",
         "card-bg": "#FFFFFF",
-        "card-border": "#E5E7EB",
-        "card-shadow": "0 1px 3px rgba(0,0,0,0.08)",
-        "text-primary": "#111827",
-        "text-secondary": "#6B7280",
-        "text-muted": "#9CA3AF",
-        "accent-green": "#059669",
+        "card-border": "#F1F5F9",
+        "card-shadow": "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
+        "text-primary": "#0F172A",
+        "text-secondary": "#64748B",
+        "text-muted": "#94A3B8",
+        "accent-green": "#10B981",
         "accent-green-bg": "#ECFDF5",
-        "accent-amber": "#D97706",
+        "accent-amber": "#F59E0B",
         "accent-amber-bg": "#FFFBEB",
-        "accent-red": "#DC2626",
+        "accent-red": "#EF4444",
         "accent-red-bg": "#FEF2F2",
-        "accent-blue": "#2563EB",
+        "accent-blue": "#3B82F6",
         "accent-blue-bg": "#EFF6FF",
-        "badge-bg": "#F3F4F6",
-        "badge-text": "#374151",
+        "badge-bg": "#F1F5F9",
+        "badge-text": "#475569",
         "badge-tech-bg": "#DBEAFE",
-        "badge-tech-text": "#1D4ED8",
+        "badge-tech-text": "#1E40AF",
         "badge-prof-bg": "#D1FAE5",
-        "badge-prof-text": "#047857",
+        "badge-prof-text": "#059669",
         "badge-lang-bg": "#FEF3C7",
-        "badge-lang-text": "#92400E",
+        "badge-lang-text": "#D97706",
         "badge-soft-bg": "#EDE9FE",
-        "badge-soft-text": "#6D28D9",
+        "badge-soft-text": "#7C3AED",
         "badge-level-bg": "#F3E8FF",
         "badge-level-text": "#7C3AED",
-        "timeline-line": "#D1D5DB",
-        "timeline-dot": "#4F46E5",
-        "upload-border": "#9CA3AF",
-        "upload-bg": "#F9FAFB",
-        "hero-gradient": "linear-gradient(135deg, #4F46E5, #7C3AED)",
-        "surface": "#F9FAFB",
+        "timeline-line": "#E2E8F0",
+        "timeline-dot": "#6366F1",
+        "upload-border": "#CBD5E1",
+        "upload-bg": "#F8FAFC",
+        "hero-gradient": "linear-gradient(135deg, #667EEA 0%, #764BA2 100%)",
+        "surface": "#F8FAFC",
         "sidebar-bg": "#FFFFFF",
     },
     "dark": {
         "primary": "#818CF8",
         "primary-light": "#1E1B4B",
-        "card-bg": "#1F2937",
-        "card-border": "#374151",
-        "card-shadow": "0 1px 3px rgba(0,0,0,0.4)",
-        "text-primary": "#F3F4F6",
-        "text-secondary": "#9CA3AF",
-        "text-muted": "#6B7280",
+        "card-bg": "#1E293B",
+        "card-border": "#334155",
+        "card-shadow": "0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2)",
+        "text-primary": "#F1F5F9",
+        "text-secondary": "#94A3B8",
+        "text-muted": "#64748B",
         "accent-green": "#34D399",
         "accent-green-bg": "#064E3B",
         "accent-amber": "#FBBF24",
@@ -233,8 +233,8 @@ _THEME_VARS = {
         "accent-red-bg": "#7F1D1D",
         "accent-blue": "#60A5FA",
         "accent-blue-bg": "#1E3A5F",
-        "badge-bg": "#374151",
-        "badge-text": "#D1D5DB",
+        "badge-bg": "#334155",
+        "badge-text": "#CBD5E1",
         "badge-tech-bg": "#1E3A5F",
         "badge-tech-text": "#93C5FD",
         "badge-prof-bg": "#064E3B",
@@ -245,13 +245,13 @@ _THEME_VARS = {
         "badge-soft-text": "#C4B5FD",
         "badge-level-bg": "#2E1065",
         "badge-level-text": "#C4B5FD",
-        "timeline-line": "#4B5563",
+        "timeline-line": "#334155",
         "timeline-dot": "#818CF8",
-        "upload-border": "#6B7280",
-        "upload-bg": "#1F2937",
-        "hero-gradient": "linear-gradient(135deg, #4338CA, #6D28D9)",
-        "surface": "#111827",
-        "sidebar-bg": "#1F2937",
+        "upload-border": "#475569",
+        "upload-bg": "#1E293B",
+        "hero-gradient": "linear-gradient(135deg, #667EEA 0%, #764BA2 100%)",
+        "surface": "#0F172A",
+        "sidebar-bg": "#1E293B",
     },
 }
 
@@ -301,53 +301,72 @@ def _build_css(theme: str) -> str:
 }}
 
 /* === Сброс и базовые стили === */
+* {{
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}}
 .block-container {{
-    padding-top: 2rem;
-    max-width: 960px;
+    padding-top: 2.5rem;
+    max-width: 1400px;
+    padding-bottom: 3rem;
 }}
 .stApp {{
     background-color: var(--cv-surface);
 }}
-section[data-testid="stSidebar"] {{
-    background-color: var(--cv-sidebar-bg) !important;
+main {{
+    background-color: transparent !important;
 }}
 
 /* === Заголовок / hero === */
 .cv-hero {{
     background: var(--cv-hero-gradient);
     color: #FFFFFF;
-    padding: 2rem 2.5rem;
-    border-radius: 0.75rem;
-    margin-bottom: 1.5rem;
+    padding: 2.5rem 3rem;
+    border-radius: 1rem;
+    margin-bottom: 2rem;
     position: relative;
+    overflow: hidden;
+    box-shadow: 0 10px 40px -10px rgba(102, 126, 234, 0.4);
+}}
+.cv-hero::before {{
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+    pointer-events: none;
 }}
 .cv-hero-title {{
-    font-size: 2rem;
+    font-size: 2.25rem;
     font-weight: 700;
-    margin: 0 0 0.25rem 0;
-    letter-spacing: -0.02em;
+    margin: 0 0 0.5rem 0;
+    letter-spacing: -0.03em;
+    position: relative;
+    z-index: 1;
 }}
 .cv-hero-subtitle {{
-    font-size: 1.05rem;
+    font-size: 1.1rem;
     margin: 0;
-    opacity: 0.85;
-}}
-.cv-hero-hint {{
-    position: absolute;
-    bottom: 0.5rem;
-    right: 1rem;
-    font-size: 0.7rem;
-    opacity: 0.55;
+    opacity: 0.95;
+    font-weight: 400;
+    position: relative;
+    z-index: 1;
 }}
 
 /* === Загрузка файлов === */
 .cv-info-card {{
     background: var(--cv-card-bg);
     border: 1px solid var(--cv-card-border);
-    border-radius: 0.75rem;
-    padding: 1.25rem;
-    margin-bottom: 1rem;
+    border-radius: 1rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
     box-shadow: var(--cv-card-shadow);
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}}
+.cv-info-card:hover {{
+    box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.1);
+    border-color: var(--cv-primary-light);
 }}
 .cv-info-card-header {{
     font-weight: 600;
@@ -360,29 +379,21 @@ section[data-testid="stSidebar"] {{
 }}
 .cv-chip {{
     display: inline-block;
-    padding: 0.2rem 0.6rem;
-    border-radius: 0.375rem;
-    font-size: 0.8rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.75rem;
     font-weight: 600;
     background: var(--cv-primary-light);
     color: var(--cv-primary);
-    margin-right: 0.35rem;
-    margin-bottom: 0.35rem;
+    margin-right: 0.4rem;
+    margin-bottom: 0.4rem;
+    letter-spacing: 0.02em;
 }}
 .cv-info-detail {{
     font-size: 0.85rem;
     color: var(--cv-text-secondary);
     margin: 0.5rem 0 0 0;
-}}
-
-div[data-testid="stFileUploader"] {{
-    border: 2px dashed var(--cv-upload-border);
-    border-radius: 0.75rem;
-    background: var(--cv-upload-bg);
-    padding: 0.5rem;
-}}
-div[data-testid="stFileUploader"] label {{
-    color: var(--cv-text-secondary);
+    line-height: 1.6;
 }}
 
 .cv-file-card {{
@@ -492,22 +503,27 @@ div[data-testid="stFileUploader"] label {{
 .cv-card {{
     background: var(--cv-card-bg);
     border: 1px solid var(--cv-card-border);
-    border-radius: 0.75rem;
-    padding: 1.25rem;
-    margin-bottom: 0.75rem;
+    border-radius: 1rem;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
     box-shadow: var(--cv-card-shadow);
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+}}
+.cv-card:hover {{
+    box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.1);
+    transform: translateY(-1px);
 }}
 .cv-card-header {{
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    margin-bottom: 1rem;
+    margin-bottom: 1.25rem;
     padding-bottom: 0.75rem;
     border-bottom: 1px solid var(--cv-card-border);
 }}
 .cv-card-title {{
     font-weight: 600;
-    font-size: 1rem;
+    font-size: 1.05rem;
     color: var(--cv-text-primary);
 }}
 
@@ -537,81 +553,44 @@ div[data-testid="stFileUploader"] label {{
     font-weight: 500;
 }}
 
-/* Карточка образования с акцентной границей */
-.cv-card--accent {{
-    border-left: 4px solid var(--cv-primary);
-}}
-.cv-edu-header {{
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    margin-bottom: 0.3rem;
-}}
-.cv-edu-institution {{
+/* Компактные личные данные */
+.cv-personal-name {{
+    font-size: 1.25rem;
     font-weight: 600;
     color: var(--cv-text-primary);
-    font-size: 1rem;
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
+    margin-bottom: 0.5rem;
 }}
-.cv-edu-specialty {{
-    color: var(--cv-text-secondary);
+.cv-personal-contacts {{
     font-size: 0.9rem;
-    margin-bottom: 0.25rem;
-}}
-.cv-edu-period {{
-    font-size: 0.8rem;
-    color: var(--cv-text-muted);
+    color: var(--cv-text-secondary);
     display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
     align-items: center;
-    gap: 0.3rem;
 }}
 
-/* === Таймлайн (опыт) === */
-.cv-timeline {{
-    position: relative;
-    padding-left: 2rem;
-    margin-top: 0.5rem;
+/* === Единый стиль для карточек (образование, опыт, проекты) === */
+.cv-item-card {{
+    background: var(--cv-card-bg);
+    border: 1px solid var(--cv-card-border);
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }}
-.cv-timeline::before {{
-    content: '';
-    position: absolute;
-    left: 0.45rem;
-    top: 0;
-    bottom: 0;
-    width: 2px;
-    background: var(--cv-timeline-line);
+.cv-item-card:hover {{
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    border-color: var(--cv-primary-light);
 }}
-.cv-timeline-item {{
-    position: relative;
-    margin-bottom: 1.25rem;
-}}
-.cv-timeline-item:last-child {{
-    margin-bottom: 0;
-}}
-.cv-timeline-marker {{
-    position: absolute;
-    left: -1.675rem;
-    top: 1rem;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: var(--cv-timeline-dot);
-    border: 2px solid var(--cv-card-bg);
-    box-shadow: 0 0 0 2px var(--cv-timeline-dot);
-}}
-.cv-exp-header {{
+.cv-item-header {{
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 0.5rem;
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.5rem;
 }}
-.cv-exp-company {{
+.cv-item-title {{
     font-weight: 600;
     color: var(--cv-text-primary);
     font-size: 1rem;
@@ -619,33 +598,39 @@ div[data-testid="stFileUploader"] label {{
     align-items: center;
     gap: 0.4rem;
 }}
-.cv-exp-position {{
-    color: var(--cv-text-secondary);
-    font-size: 0.9rem;
+.cv-item-subtitle {{
+    color: var(--cv-primary);
+    font-size: 0.95rem;
+    font-weight: 500;
 }}
-.cv-exp-period {{
+.cv-item-period {{
     font-size: 0.8rem;
     color: var(--cv-text-muted);
     display: flex;
     align-items: center;
     gap: 0.3rem;
-    margin-bottom: 0.35rem;
 }}
-.cv-exp-desc {{
+.cv-item-desc {{
     font-size: 0.9rem;
     color: var(--cv-text-secondary);
     line-height: 1.5;
+    margin-top: 0.5rem;
 }}
 
 /* === Бейджи (навыки) === */
 .cv-badge {{
     display: inline-block;
-    padding: 0.25rem 0.75rem;
+    padding: 0.35rem 0.85rem;
     border-radius: 9999px;
-    font-size: 0.8rem;
-    font-weight: 500;
-    margin: 0.2rem;
-    line-height: 1.5;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin: 0.25rem;
+    line-height: 1.4;
+    letter-spacing: 0.01em;
+    transition: transform 0.1s ease;
+}}
+.cv-badge:hover {{
+    transform: scale(1.05);
 }}
 .cv-badge--tech {{
     background: var(--cv-badge-tech-bg);
@@ -670,7 +655,7 @@ div[data-testid="stFileUploader"] label {{
 .cv-badge-row {{
     display: flex;
     flex-wrap: wrap;
-    gap: 0.1rem;
+    gap: 0.25rem;
     margin-bottom: 1rem;
 }}
 .cv-skills-group {{
@@ -686,78 +671,40 @@ div[data-testid="stFileUploader"] label {{
     gap: 0.4rem;
 }}
 
-/* === Дополнительно: сетка карточек === */
-.cv-additional-grid {{
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 1rem;
-}}
-.cv-sub-card {{
-    background: var(--cv-card-bg);
-    border: 1px solid var(--cv-card-border);
-    border-radius: 0.75rem;
-    padding: 1rem;
-    box-shadow: var(--cv-card-shadow);
-}}
-.cv-sub-card-header {{
-    font-weight: 600;
-    font-size: 0.9rem;
-    color: var(--cv-text-primary);
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    margin-bottom: 0.75rem;
-    padding-bottom: 0.5rem;
-    border-bottom: 1px solid var(--cv-card-border);
-}}
-.cv-cert-item {{
-    margin-bottom: 0.5rem;
-}}
-.cv-cert-name {{
-    font-weight: 500;
-    color: var(--cv-text-primary);
-}}
-.cv-cert-meta {{
-    font-size: 0.8rem;
-    color: var(--cv-text-muted);
-}}
-.cv-project-item {{
-    margin-bottom: 0.75rem;
-}}
-.cv-project-name {{
-    font-weight: 500;
-    color: var(--cv-text-primary);
-}}
-.cv-project-role {{
-    font-size: 0.85rem;
-    color: var(--cv-text-secondary);
-}}
-.cv-project-desc {{
-    font-size: 0.85rem;
-    color: var(--cv-text-muted);
-}}
-.cv-achieve-item {{
-    margin-bottom: 0.3rem;
-    color: var(--cv-text-secondary);
-    font-size: 0.9rem;
-    display: flex;
-    align-items: flex-start;
-    gap: 0.3rem;
-}}
-
 /* === Стилизация Streamlit-виджетов === */
 .stTabs [data-baseweb="tab-list"] {{
     gap: 0.25rem;
 }}
 [data-testid="stTab"] {{
-    border-radius: 0.5rem 0.5rem 0 0;
+    border-radius: 0.75rem 0.75rem 0 0;
     font-size: 0.9rem;
 }}
 .stAlert {{
-    border-radius: 0.5rem;
+    border-radius: 0.75rem;
 }}
 button[kind="primary"] {{
-    border-radius: 0.5rem !important;
+    border-radius: 0.75rem !important;
+    font-weight: 600 !important;
+    transition: all 0.2s ease !important;
+}}
+button[kind="primary"]:hover {{
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4) !important;
+}}
+div[data-testid="stFileUploader"] {{
+    border: 2px dashed var(--cv-upload-border);
+    border-radius: 1rem;
+    background: var(--cv-upload-bg);
+    padding: 1.5rem;
+    transition: border-color 0.2s ease, background 0.2s ease;
+}}
+div[data-testid="stFileUploader"]:hover {{
+    border-color: var(--cv-primary);
+    background: var(--cv-primary-light);
+}}
+div[data-testid="stFileUploader"] label {{
+    color: var(--cv-text-secondary);
+    font-weight: 500;
 }}
 
 /* Сообщение "не найдено" */
@@ -783,22 +730,6 @@ button[kind="primary"] {{
 st.markdown(_build_css(st.session_state.theme), unsafe_allow_html=True)
 
 
-# ---------------------------------------------------------------------------
-# Переключатель темы (боковая панель)
-# ---------------------------------------------------------------------------
-def _render_theme_toggle():
-    """Отображает переключатель темы в боковой панели."""
-    with st.sidebar:
-        st.markdown("### Настройки")
-        current_is_dark = st.session_state.theme == "dark"
-        is_dark = st.toggle("Тёмная тема", value=current_is_dark)
-        new_theme = "dark" if is_dark else "light"
-        if new_theme != st.session_state.theme:
-            st.session_state.theme = new_theme
-            st.rerun()
-
-
-_render_theme_toggle()
 
 
 # ---------------------------------------------------------------------------
@@ -810,7 +741,7 @@ def upload_file(file_bytes: bytes, file_name: str) -> dict | None:
         response = requests.post(
             f"{API_URL}/api/v1/upload",
             files={"file": (file_name, file_bytes)},
-            timeout=30,
+            timeout=60,
         )
         if response.status_code == 202:
             logger.info("Файл загружен: task_id=%s", response.json()["task_id"])
@@ -840,7 +771,7 @@ def check_task_status(task_id: str) -> dict | None:
     """
     status_url = f"{API_URL}/api/v1/tasks/{task_id}"
     try:
-        response = requests.get(status_url, timeout=10)
+        response = requests.get(status_url, timeout=30)
     except requests.RequestException:
         logger.exception("RequestException при polling task_id=%s", task_id)
         return None
@@ -865,7 +796,7 @@ def fetch_result(task_id: str) -> dict | None:
     try:
         response = requests.get(
             f"{API_URL}/api/v1/tasks/{task_id}/result",
-            timeout=10,
+            timeout=30,
         )
         if response.status_code == 200:
             result = response.json()
@@ -962,7 +893,7 @@ def _progress_panel(pct: int, label: str, status: str, eta_sec: int) -> str:
 # Отображение результата по секциям
 # ---------------------------------------------------------------------------
 def render_personal_data(data: dict):
-    """Секция: Личные данные."""
+    """Секция: Личные данные (компактная карточка)."""
     pd = data.get("personal_data", {})
     if not pd:
         st.markdown(
@@ -971,23 +902,28 @@ def render_personal_data(data: dict):
         )
         return
 
-    fields = [
-        ("Фамилия", pd.get("last_name"), "user"),
-        ("Имя", pd.get("first_name"), "user"),
-        ("Отчество", pd.get("middle_name"), "user"),
-        ("Email", pd.get("email"), "email"),
-        ("Телефон", pd.get("phone"), "phone"),
-        ("Город", pd.get("city"), "location"),
-        ("Дата рождения", pd.get("birth_date"), "calendar"),
-    ]
-    fields_html = "\n".join(
-        _field_row(label, value, icon_name) for label, value, icon_name in fields
-    )
+    # ФИО в одну строку
+    last_name = _esc(pd.get("last_name", ""))
+    first_name = _esc(pd.get("first_name", ""))
+    middle_name = _esc(pd.get("middle_name", ""))
+    full_name = f"{last_name} {first_name} {middle_name}".strip()
+
+    # Контакты через разделители
+    contacts = []
+    if pd.get("email"):
+        contacts.append(f'{_icon("email", 14)} {_esc(pd.get("email"))}')
+    if pd.get("phone"):
+        contacts.append(f'{_icon("phone", 14)} {_esc(pd.get("phone"))}')
+    if pd.get("city"):
+        contacts.append(f'{_icon("location", 14)} {_esc(pd.get("city"))}')
+    contacts_html = ' <span style="color:var(--cv-text-muted)">|</span> '.join(contacts)
+
     st.markdown(
         f'<div class="cv-card">'
         f'<div class="cv-card-header">{_icon("user", 18)} '
         f'<span class="cv-card-title">Контактная информация</span></div>'
-        f'<div class="cv-field-grid">{fields_html}</div>'
+        f'<div class="cv-personal-name">{full_name}</div>'
+        f'<div class="cv-personal-contacts">{contacts_html}</div>'
         f'</div>',
         unsafe_allow_html=True,
     )
@@ -1002,6 +938,15 @@ def render_education(data: dict):
             unsafe_allow_html=True,
         )
         return
+
+    # Заголовок секции
+    st.markdown(
+        f'<h3 style="display: flex; align-items: center; gap: 0.5rem; '
+        f'margin: 2rem 0 1rem 0; color: var(--cv-text-primary); '
+        f'font-size: 1.25rem; font-weight: 600;">'
+        f'{_icon("edu", 20)} Образование</h3>',
+        unsafe_allow_html=True,
+    )
 
     items = []
     for edu in education:
@@ -1019,20 +964,20 @@ def render_education(data: dict):
         )
 
         specialty_html = (
-            f'<div class="cv-edu-specialty">{specialty}</div>'
+            f'<div class="cv-item-subtitle">{specialty}</div>'
             if specialty
             else ""
         )
         period_html = (
-            f'<div class="cv-edu-period">'
+            f'<div class="cv-item-period">'
             f'{_icon("calendar", 14)} {period}</div>'
             if period
             else ""
         )
         items.append(
-            f'<div class="cv-card cv-card--accent">'
-            f'<div class="cv-edu-header">'
-            f'<span class="cv-edu-institution">'
+            f'<div class="cv-item-card">'
+            f'<div class="cv-item-header">'
+            f'<span class="cv-item-title">'
             f'{_icon("edu", 16)} {institution}</span>'
             f'{level_badge}'
             f'</div>'
@@ -1041,7 +986,7 @@ def render_education(data: dict):
             f'</div>'
         )
 
-    st.markdown("\n".join(items), unsafe_allow_html=True)
+    st.markdown(f'<div style="display: grid; gap: 1rem;">{"".join(items)}</div>', unsafe_allow_html=True)
 
 
 def render_experience(data: dict):
@@ -1054,6 +999,15 @@ def render_experience(data: dict):
         )
         return
 
+    # Заголовок секции
+    st.markdown(
+        f'<h3 style="display: flex; align-items: center; gap: 0.5rem; '
+        f'margin: 2rem 0 1rem 0; color: var(--cv-text-primary); '
+        f'font-size: 1.25rem; font-weight: 600;">'
+        f'{_icon("briefcase", 20)} Опыт работы</h3>',
+        unsafe_allow_html=True,
+    )
+
     items = []
     for exp in experience:
         company = _esc(exp.get("company", "Не указано"))
@@ -1064,38 +1018,38 @@ def render_experience(data: dict):
         period = f"{start} - {end}" if start or end else ""
 
         period_html = (
-            f'<div class="cv-exp-period">'
+            f'<div class="cv-item-period">'
             f'{_icon("calendar", 14)} {period}</div>'
             if period
             else ""
         )
-        resp_html = (
-            f'<div class="cv-exp-desc">{responsibilities}</div>'
+        position_html = (
+            f'<div class="cv-item-subtitle">{position}</div>'
+            if position
+            else ""
+        )
+        desc_html = (
+            f'<div class="cv-item-desc">{responsibilities}</div>'
             if responsibilities
             else ""
         )
         items.append(
-            f'<div class="cv-timeline-item">'
-            f'<div class="cv-timeline-marker"></div>'
-            f'<div class="cv-card">'
-            f'<div class="cv-exp-header">'
-            f'<span class="cv-exp-company">'
+            f'<div class="cv-item-card">'
+            f'<div class="cv-item-header">'
+            f'<span class="cv-item-title">'
             f'{_icon("briefcase", 16)} {company}</span>'
-            f'<span class="cv-exp-position">{position}</span>'
+            f'{period_html if period else ""}'
             f'</div>'
-            f'{period_html}'
-            f'{resp_html}'
-            f'</div></div>'
+            f'{position_html}'
+            f'{desc_html}'
+            f'</div>'
         )
 
-    st.markdown(
-        f'<div class="cv-timeline">{"".join(items)}</div>',
-        unsafe_allow_html=True,
-    )
+    st.markdown(f'<div style="display: grid; gap: 1rem;">{"".join(items)}</div>', unsafe_allow_html=True)
 
 
 def render_skills(data: dict):
-    """Секция: Навыки."""
+    """Секция: Навыки (компактная карточка)."""
     skills = data.get("skills", {})
     if not skills:
         st.markdown(
@@ -1115,39 +1069,29 @@ def render_skills(data: dict):
 
     if tech:
         badges = "".join(_badge(s, "tech") for s in tech)
-        parts.append(
-            f'<div class="cv-skills-group">'
-            f'<div class="cv-skills-group-title">'
-            f'{_icon("code", 16)} Технические навыки</div>'
-            f'<div class="cv-badge-row">{badges}</div></div>'
-        )
+        parts.append(f'<div class="cv-badge-row">{badges}</div>')
     if prof:
         badges = "".join(_badge(s, "prof") for s in prof)
-        parts.append(
-            f'<div class="cv-skills-group">'
-            f'<div class="cv-skills-group-title">'
-            f'{_icon("briefcase", 16)} Профессиональные навыки</div>'
-            f'<div class="cv-badge-row">{badges}</div></div>'
-        )
+        parts.append(f'<div class="cv-badge-row">{badges}</div>')
     if langs:
         badges = "".join(_badge(s, "lang") for s in langs)
-        parts.append(
-            f'<div class="cv-skills-group">'
-            f'<div class="cv-skills-group-title">'
-            f'{_icon("globe", 16)} Языки</div>'
-            f'<div class="cv-badge-row">{badges}</div></div>'
-        )
+        parts.append(f'<div class="cv-badge-row">{badges}</div>')
     if soft_skills:
         badges = "".join(_badge(s, "soft") for s in soft_skills)
         parts.append(
-            f'<div class="cv-skills-group">'
-            f'<div class="cv-skills-group-title">'
-            f'{_icon("star", 16)} Soft skills</div>'
-            f'<div class="cv-badge-row">{badges}</div></div>'
+            f'<div style="margin-top:0.5rem; padding-top:0.5rem; border-top:1px solid var(--cv-card-border)">'
+            f'{badges}</div>'
         )
 
     if parts:
-        st.markdown("".join(parts), unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="cv-card">'
+            f'<div class="cv-card-header">{_icon("code", 18)} '
+            f'<span class="cv-card-title">Навыки</span></div>'
+            f'{"".join(parts)}'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
     else:
         st.markdown(
             '<div class="cv-empty">Информация о навыках не найдена.</div>',
@@ -1165,150 +1109,108 @@ def render_additional(data: dict):
         )
         return
 
-    cards = []
+    # Заголовок секции
+    st.markdown(
+        f'<h3 style="display: flex; align-items: center; gap: 0.5rem; '
+        f'margin: 2rem 0 1rem 0; color: var(--cv-text-primary); '
+        f'font-size: 1.25rem; font-weight: 600;">'
+        f'{_icon("star", 20)} Дополнительно</h3>',
+        unsafe_allow_html=True,
+    )
+
+    items = []
 
     # Сертификаты
     certificates = additional.get("certificates", [])
-    if certificates:
-        items = []
-        for cert in certificates:
-            name = _esc(cert.get("name", ""))
-            issuer = _esc(cert.get("issuer", ""))
-            year = _esc(cert.get("year", ""))
-            meta_parts = [p for p in [issuer, year] if p]
-            meta = f' | {" | ".join(meta_parts)}' if meta_parts else ""
-            items.append(
-                f'<div class="cv-cert-item">'
-                f'<span class="cv-cert-name">{name}</span>'
-                f'<span class="cv-cert-meta">{meta}</span>'
-                f'</div>'
-            )
-        cards.append(
-            f'<div class="cv-sub-card">'
-            f'<div class="cv-sub-card-header">'
-            f'{_icon("cert", 16)} Сертификаты</div>'
-            f'{"".join(items)}</div>'
+    for cert in certificates:
+        name = _esc(cert.get("name", ""))
+        issuer = _esc(cert.get("issuer", ""))
+        year = _esc(cert.get("year", ""))
+        meta = f'{issuer} | {year}' if issuer and year else (issuer or year or "")
+        items.append(
+            f'<div class="cv-item-card">'
+            f'<div class="cv-item-header">'
+            f'<span class="cv-item-title">{_icon("cert", 16)} {name}</span>'
+            f'</div>'
+            f'<div class="cv-item-desc">{meta}</div>'
+            f'</div>'
         )
 
     # Проекты
     projects = additional.get("projects", [])
-    if projects:
-        items = []
-        for proj in projects:
-            name = _esc(proj.get("name", "Без названия"))
-            role = _esc(proj.get("role", ""))
-            desc = _esc(proj.get("description", ""))
-            role_html = (
-                f'<div class="cv-project-role">Роль: {role}</div>'
-                if role
-                else ""
-            )
-            desc_html = (
-                f'<div class="cv-project-desc">{desc}</div>'
-                if desc
-                else ""
-            )
-            items.append(
-                f'<div class="cv-project-item">'
-                f'<div class="cv-project-name">{name}</div>'
-                f'{role_html}'
-                f'{desc_html}'
-                f'</div>'
-            )
-        cards.append(
-            f'<div class="cv-sub-card">'
-            f'<div class="cv-sub-card-header">'
-            f'{_icon("project", 16)} Проекты</div>'
-            f'{"".join(items)}</div>'
+    for proj in projects:
+        name = _esc(proj.get("name", "Без названия"))
+        role = _esc(proj.get("role", ""))
+        desc = _esc(proj.get("description", ""))
+        role_html = (
+            f'<div class="cv-item-subtitle">Роль: {role}</div>'
+            if role
+            else ""
+        )
+        desc_html = (
+            f'<div class="cv-item-desc">{desc}</div>'
+            if desc
+            else ""
+        )
+        items.append(
+            f'<div class="cv-item-card">'
+            f'<div class="cv-item-header">'
+            f'<span class="cv-item-title">{_icon("project", 16)} {name}</span>'
+            f'</div>'
+            f'{role_html}'
+            f'{desc_html}'
+            f'</div>'
         )
 
     # Достижения
-    achievements = additional.get("achievements", {})
+    achievements = additional.get("achievements") or {}
     awards = achievements.get("awards", [])
     publications = achievements.get("publications", [])
     conferences = achievements.get("conferences", [])
 
-    achieve_parts = []
-    if awards:
-        items = "".join(
-            f'<div class="cv-achieve-item">'
-            f'{_icon("trophy", 14)} {_esc(a)}</div>'
-            for a in awards
+    for award in awards:
+        items.append(
+            f'<div class="cv-item-card">'
+            f'<div class="cv-item-desc">{_icon("trophy", 14)} {_esc(award)}</div>'
+            f'</div>'
         )
-        achieve_parts.append(
-            f'<div style="margin-bottom:0.5rem">'
-            f'<strong>Награды</strong>{items}</div>'
+    for pub in publications:
+        items.append(
+            f'<div class="cv-item-card">'
+            f'<div class="cv-item-desc">{_icon("book", 14)} {_esc(pub)}</div>'
+            f'</div>'
         )
-    if publications:
-        items = "".join(
-            f'<div class="cv-achieve-item">'
-            f'{_icon("book", 14)} {_esc(p)}</div>'
-            for p in publications
-        )
-        achieve_parts.append(
-            f'<div style="margin-bottom:0.5rem">'
-            f'<strong>Публикации</strong>{items}</div>'
-        )
-    if conferences:
-        items = "".join(
-            f'<div class="cv-achieve-item">'
-            f'{_icon("globe", 14)} {_esc(c)}</div>'
-            for c in conferences
-        )
-        achieve_parts.append(
-            f'<div style="margin-bottom:0.5rem">'
-            f'<strong>Конференции</strong>{items}</div>'
+    for conf in conferences:
+        items.append(
+            f'<div class="cv-item-card">'
+            f'<div class="cv-item-desc">{_icon("globe", 14)} {_esc(conf)}</div>'
+            f'</div>'
         )
 
-    if achieve_parts:
-        cards.append(
-            f'<div class="cv-sub-card">'
-            f'<div class="cv-sub-card-header">'
-            f'{_icon("star", 16)} Достижения</div>'
-            f'{"".join(achieve_parts)}</div>'
-        )
-
-    if cards:
-        st.markdown(
-            f'<div class="cv-additional-grid">{"".join(cards)}</div>',
-            unsafe_allow_html=True,
-        )
+    if items:
+        st.markdown(f'<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">{"".join(items)}</div>', unsafe_allow_html=True)
     else:
-        st.markdown(
-            '<div class="cv-empty">Дополнительная информация не найдена.</div>',
-            unsafe_allow_html=True,
-        )
+        st.markdown('<div class="cv-empty">Дополнительная информация не найдена.</div>', unsafe_allow_html=True)
 
 
 def render_result(result_data: dict):
-    """Отображает результат извлечения в виде вкладок по секциям."""
+    """Отображает результат извлечения в виде карточной сетки (grid layout)."""
     data = result_data.get("data", {})
 
-    tab_labels = [
-        f"{_icon('user', 16)} Личные данные",
-        f"{_icon('edu', 16)} Образование",
-        f"{_icon('briefcase', 16)} Опыт работы",
-        f"{_icon('code', 16)} Навыки",
-        f"{_icon('star', 16)} Дополнительно",
-    ]
-    tab_personal, tab_education, tab_experience, tab_skills, tab_additional = st.tabs(
-        tab_labels
-    )
+    # Grid layout: 2 колонки для компактных карточек (личные данные + навыки),
+    # затем полноширинные карточки для остального
+    col1, col2 = st.columns(2)
 
-    with tab_personal:
+    with col1:
         render_personal_data(data)
 
-    with tab_education:
-        render_education(data)
-
-    with tab_experience:
-        render_experience(data)
-
-    with tab_skills:
+    with col2:
         render_skills(data)
 
-    with tab_additional:
-        render_additional(data)
+    # Полноширинные карточки
+    render_education(data)
+    render_experience(data)
+    render_additional(data)
 
     # Кнопка скачивания JSON
     st.divider()
@@ -1352,17 +1254,24 @@ def polling_fragment():
 
     attempts = st.session_state.get("poll_attempts", 0)
 
+    # Инкремент попыток ПЕРЕД проверкой лимита (правильный порядок)
+    attempts += 1
+    st.session_state["poll_attempts"] = attempts
+
     # Проверка лимита попыток
-    if attempts >= MAX_POLL_ATTEMPTS:
+    if attempts > MAX_POLL_ATTEMPTS:
         st.error(
             f"Превышено время ожидания результата "
             f"({MAX_POLL_ATTEMPTS * POLL_INTERVAL_SEC} сек). "
-            "Попробуйте позже."
         )
+        st.warning("Задача может быть ещё в обработке. Нажмите кнопку ниже, чтобы продолжить ожидание.")
         logger.warning(
             "Timeout polling task_id=%s: %d попыток", task_id, attempts
         )
-        clear_polling_state()
+        # НЕ удаляем task_id — пользователь может продолжить ожидание
+        if st.button("⏳ Продолжить ждать (ещё 5 мин)"):
+            st.session_state["poll_attempts"] = 0  # сброс счётчика
+            st.rerun()
         return
 
     # Один запрос статуса
@@ -1372,8 +1281,9 @@ def polling_fragment():
         st.error(
             "Не удалось получить статус задачи. Проверьте подключение к серверу."
         )
-        if st.button("Повторить запрос статуса"):
-            clear_polling_state()
+        # Ошибка сети — предлагаем подождать и повторить
+        if st.button("🔄 Попробовать снова"):
+            st.session_state["poll_attempts"] = max(0, attempts - 1)  # откат попытки
             st.rerun()
         return
 
@@ -1382,8 +1292,9 @@ def polling_fragment():
     if status == "completed":
         result = fetch_result(task_id)
         if result is None:
-            if st.button("Повторить загрузку результата"):
-                clear_polling_state()
+            # Задача завершена, но результат не получен — предлагаем повторить
+            if st.button("🔄 Повторить загрузку результата"):
+                # Не сбрасываем состояние, просто повторим запрос на следующем run
                 st.rerun()
             return
 
@@ -1401,9 +1312,6 @@ def polling_fragment():
         return
 
     # Задача ещё обрабатывается — показываем прогресс
-    attempts += 1
-    st.session_state["poll_attempts"] = attempts
-
     estimated = st.session_state.get("estimated_seconds", 150)
     elapsed = time.time() - st.session_state.get("poll_start_time", time.time())
     progress_pct = min(int(elapsed / estimated * 100), 95)
@@ -1437,7 +1345,6 @@ def main():
         '<h1 class="cv-hero-title">CV Analyzer</h1>'
         '<p class="cv-hero-subtitle">'
         'Извлечение и структурирование данных из резюме</p>'
-        '<div class="cv-hero-hint">Настройки темы: боковая панель</div>'
         '</div>',
         unsafe_allow_html=True,
     )
@@ -1455,6 +1362,11 @@ def main():
         f'<p class="cv-info-detail">'
         f'Максимальный размер: <strong>{MAX_FILE_SIZE_MB} МБ</strong> '
         f'| Время обработки: ~150 сек</p>'
+        f'<p class="cv-info-detail">'
+        f'<strong>Извлекаемые данные:</strong> '
+        f'ФИО, email, телефон, город, образование, опыт работы, '
+        f'навыки (technical/professional/languages/soft), '
+        f'сертификаты, проекты, достижения</p>'
         f'</div>',
         unsafe_allow_html=True,
     )

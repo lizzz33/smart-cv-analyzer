@@ -84,6 +84,21 @@ def _process_message_sync(msg_data: dict) -> None:
     session = None
     try:
         session = get_session()
+
+        # Проверяем, существует ли задача (обработка старых сообщений из Kafka)
+        from sqlalchemy import text
+        task_exists = session.execute(
+            text("SELECT 1 FROM tasks WHERE id = :task_id"),
+            {"task_id": task_id}
+        ).scalar_one_or_none()
+
+        if task_exists is None:
+            logger.warning(
+                "Задача %s не найдена в БД (вероятно, старое сообщение из Kafka), пропуск",
+                task_id
+            )
+            return  # Пропкаем обработку, но коммитим offset в Kafka
+
         update_task_status(session, task_id, "processing")
 
         if file_type in TEXT_FILE_TYPES:
