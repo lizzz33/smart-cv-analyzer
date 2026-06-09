@@ -741,7 +741,7 @@ def upload_file(file_bytes: bytes, file_name: str) -> dict | None:
         response = requests.post(
             f"{API_URL}/api/v1/upload",
             files={"file": (file_name, file_bytes)},
-            timeout=60,
+            timeout=600,
         )
         if response.status_code == 202:
             logger.info("Файл загружен: task_id=%s", response.json()["task_id"])
@@ -771,7 +771,7 @@ def check_task_status(task_id: str) -> dict | None:
     """
     status_url = f"{API_URL}/api/v1/tasks/{task_id}"
     try:
-        response = requests.get(status_url, timeout=30)
+        response = requests.get(status_url, timeout=600)
     except requests.RequestException:
         logger.exception("RequestException при polling task_id=%s", task_id)
         return None
@@ -796,7 +796,7 @@ def fetch_result(task_id: str) -> dict | None:
     try:
         response = requests.get(
             f"{API_URL}/api/v1/tasks/{task_id}/result",
-            timeout=30,
+            timeout=600,
         )
         if response.status_code == 200:
             result = response.json()
@@ -1361,7 +1361,7 @@ def main():
         f'<div>{format_chips}</div>'
         f'<p class="cv-info-detail">'
         f'Максимальный размер: <strong>{MAX_FILE_SIZE_MB} МБ</strong> '
-        f'| Время обработки: ~150 сек</p>'
+        f'| Время обработки: ~2-3 минуты на страницу</p>'
         f'<p class="cv-info-detail">'
         f'<strong>Извлекаемые данные:</strong> '
         f'ФИО, email, телефон, город, образование, опыт работы, '

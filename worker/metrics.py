@@ -1,8 +1,9 @@
 """Prometheus-метрики Worker-сервиса."""
 
-import os
 import logging
+import os
 
+import psutil
 from prometheus_client import Counter, Gauge, Histogram
 
 logger = logging.getLogger(__name__)
@@ -51,28 +52,9 @@ cv_ram_usage_bytes = Gauge(
 )
 
 
-_psutil_process = None
+_process = psutil.Process(os.getpid())
 
 
-def _get_psutil_process():
-    """Получение кэшированного экземпляра psutil.Process."""
-    global _psutil_process
-    if _psutil_process is None:
-        import psutil
-
-        _psutil_process = psutil.Process(os.getpid())
-    return _psutil_process
-
-
-def update_ram_usage():
+def update_ram_usage() -> None:
     """Обновление метрики потребления RAM."""
-    try:
-        process = _get_psutil_process()
-    except (ImportError, OSError):
-        logger.debug("psutil недоступен — метрика RAM не обновляется")
-        return
-    try:
-        mem_info = process.memory_info()
-        cv_ram_usage_bytes.set(mem_info.rss)
-    except Exception:
-        logger.debug("Не удалось получить информацию о памяти", exc_info=True)
+    cv_ram_usage_bytes.set(_process.memory_info().rss)

@@ -68,5 +68,5 @@ async def upload_file(
     return {
         "task_id": str(task.id),
         "status": task.status,
-        "estimated_seconds": 150,
+        "estimated_seconds": 600,
     }

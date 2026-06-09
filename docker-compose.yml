@@ -75,6 +75,11 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: 50m
+        max-file: 3
 
   worker:
     build: ./worker
@@ -99,6 +104,11 @@ services:
     restart: unless-stopped
     deploy:
       replicas: 1
+    logging:
+      driver: json-file
+      options:
+        max-size: 100m
+        max-file: 5
 
   ui:
     build: ./ui

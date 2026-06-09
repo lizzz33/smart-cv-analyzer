@@ -27,23 +27,22 @@ EXTRACTION_PROMPT = """Извлеки данные из резюме в JSON.
 5. Навыки извлекай ИЗ ВСЕХ секций - "Навыки", "О себе", "Обо мне", "Ключевые навыки"
 
 Верни ТОЛЬКО валидный JSON в таком формате:
+
 {{
   "personal_data": {{
     "last_name": "",
     "first_name": "",
-    "middle_name": "",
     "email": "",
     "phone": "",
-    "city": "",
-    "birth_date": ""
+    "city": ""
   }},
   "education": [
     {{
       "institution": "",
       "specialty": "",
       "level": "",
-      "start_year": null,
-      "end_year": null
+      "start_year": "",
+      "end_year": ""
     }}
   ],
   "experience": [
@@ -60,17 +59,12 @@ EXTRACTION_PROMPT = """Извлеки данные из резюме в JSON.
       "technical": [],
       "professional": [],
       "languages": []
-    }},
-    "soft_skills": []
+    }}
   }},
   "additional": {{
     "certificates": [{{"name": "", "issuer": "", "year": ""}}],
     "projects": [{{"name": "", "role": "", "description": ""}}],
-    "achievements": {{
-      "awards": [],
-      "publications": [],
-      "conferences": []
-    }}
+    "achievements": {{ "awards": [], "publications": [], "conferences": [] }}
   }}
 }}
 
@@ -79,7 +73,7 @@ EXTRACTION_PROMPT = """Извлеки данные из резюме в JSON.
 FALLBACK_PROMPT = """Извлеки данные из резюме в JSON.
 
 Формат:
-{{"personal_data": {{"last_name": "", "first_name": "", "middle_name": "", "email": "", "phone": "", "city": "", "birth_date": ""}}, "education": [], "experience": [], "skills": {{"hard_skills": {{"technical": [], "professional": [], "languages": []}}, "soft_skills": []}}, "additional": {{"certificates": [], "projects": [], "achievements": {{"awards": [], "publications": [], "conferences": []}}}}}}
+{{"personal_data": {{"last_name": "", "first_name": "", "email": "", "phone": "", "city": ""}}, "education": [], "experience": [], "skills": {{"hard_skills": {{"technical": [], "professional": [], "languages": []}}}}, "additional": {{"certificates": [], "projects": [], "achievements": {{"awards": [], "publications": [], "conferences": []}}}}}}
 
 Верни только JSON."""
 
@@ -91,14 +85,10 @@ class VisionPipeline(BasePipeline):
         """Предобработка изображения и генерация структурированного JSON."""
         self._detect_file_type(file_path)
 
-        # Шаг 1: загрузка и предобработка изображения
         image = self._preprocess_image(file_path)
         logger.info("Изображение загружено и предобработано: %s", file_path)
 
-        # Шаг 2: загрузка модели
         model_manager.load_vision_model()
-
-        # Шаг 3: генерация с retry (основной -> fallback)
         result = self._generate_with_retry(image)
 
         logger.info("Результат vision пайплайна получен")
@@ -119,19 +109,13 @@ class VisionPipeline(BasePipeline):
             if img.mode != "RGB":
                 img = img.convert("RGB")
 
-            # Ресайз с сохранением пропорций
             if max(img.size) > MAX_IMAGE_SIZE:
                 ratio = MAX_IMAGE_SIZE / max(img.size)
                 new_size = (int(img.size[0] * ratio), int(img.size[1] * ratio))
                 img = img.resize(new_size, Image.LANCZOS)
 
-            # Усиление резкости для мелкого текста
             img = img.filter(ImageFilter.SHARPEN)
-
-            # Небольшое увеличение контраста
             img = ImageEnhance.Contrast(img).enhance(1.15)
-
-            # Увеличение яркости для тёмных участков
             img = ImageEnhance.Brightness(img).enhance(1.05)
 
             return img
@@ -191,7 +175,6 @@ class VisionPipeline(BasePipeline):
                 use_cache=True,
             )
 
-        # Отсекаем входные токены
         generated_ids = [
             out_ids[len(in_ids):]
             for in_ids, out_ids in zip(inputs.input_ids, output_ids)

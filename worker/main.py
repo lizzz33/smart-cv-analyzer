@@ -16,18 +16,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def _start_metrics_server():
+def _start_metrics_server() -> None:
     """Запуск HTTP-сервера для экспорта метрик Prometheus в фоновом потоке."""
-    port = settings.METRICS_PORT
-    try:
-        start_http_server(port)
-        logger.info("Metrics-сервер запущен на порту %d", port)
-    except Exception:
-        logger.exception(
-            "Не удалось запустить metrics-сервер на порту %d. "
-            "Метрики Prometheus будут недоступны.",
-            port,
-        )
+    start_http_server(settings.METRICS_PORT)
+    logger.info("Metrics-сервер запущен на порту %d", settings.METRICS_PORT)
 
 
 def main():

@@ -43,6 +43,7 @@ class ModelManager:
             trust_remote_code=True,
         )
         self._model.eval()
+        self._model.generation_config.do_sample = True
         self._current_model_type = "text"
 
         duration = time.monotonic() - start_time
@@ -72,6 +73,7 @@ class ModelManager:
             attn_implementation="eager",
         )
         self._model.eval()
+        self._model.generation_config.do_sample = True
         self._current_model_type = "vision"
 
         duration = time.monotonic() - start_time

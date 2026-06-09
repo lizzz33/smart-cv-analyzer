@@ -77,9 +77,6 @@ def _process_message_sync(msg_data: dict) -> None:
     file_type = msg_data["file_type"]
     file_path = msg_data["file_path"]
 
-    # Метрика: подсчёт по формату (внутри try — инвариант format_total == processed + failed)
-    cv_by_format_total.labels(format=file_type).inc()
-
     start_time = time.monotonic()
     session = None
     try:
@@ -121,10 +118,12 @@ def _process_message_sync(msg_data: dict) -> None:
         duration = time.monotonic() - start_time
         cv_processing_duration_seconds.labels(file_type=file_type).observe(duration)
         cv_processed_total.labels(file_type=file_type).inc()
+        cv_by_format_total.labels(format=file_type).inc()
         logger.info("Задача завершена успешно: task_id=%s, duration=%.1f сек", task_id, duration)
     except Exception as e:
         error_msg = str(e)
         cv_failed_total.labels(file_type=file_type).inc()
+        cv_by_format_total.labels(format=file_type).inc()
         if session is not None:
             try:
                 session.rollback()
